@@ -1,0 +1,41 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+env/
+.venv/
+ENV/
+
+# PyInstaller / Build outputs
+build/app/
+build/pyinstaller/
+dist/
+
+# Large AI Models (>100MB cannot be committed to GitHub)
+# Use 'python tools/download_models.py' to download them
+models/*.onnx
+models/*.tmp
+
+# Local testing data outputs
+data/output/*
+!data/output/.gitkeep
+data/output.png
+
+# Application logs
+logs/
+*.log
+
+# Testing & caches
+.pytest_cache/
+.coverage
+htmlcov/
+
+# OS / Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
