@@ -38,24 +38,6 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Background Camera Prober Thread (non-blocking)
-# ---------------------------------------------------------------------------
-
-class CameraProbeWorker(QThread):
-    """Probes available cameras in the background to avoid freezing the UI on startup."""
-    cameras_found = Signal(list)
-
-    def run(self) -> None:
-        try:
-            from app.camera.capture import list_cameras
-            cams = list_cameras()
-            self.cameras_found.emit(cams)
-        except Exception as exc:
-            logger.warning("Background camera probe failed: %s", exc)
-            self.cameras_found.emit([])
-
-
-# ---------------------------------------------------------------------------
 # Worker Thread for Heavy Pipeline Operations
 # ---------------------------------------------------------------------------
 
@@ -105,104 +87,6 @@ class PipelineWorker(QThread):
 
 
 # ---------------------------------------------------------------------------
-# Camera Dialog
-# ---------------------------------------------------------------------------
-
-class CameraCaptureDialog(QDialog):
-    """Modal dialog for capturing a live photo from webcam."""
-
-    def __init__(self, camera_index: int = 0, parent: Optional[QWidget] = None) -> None:
-        super().__init__(parent)
-        self.camera_index = camera_index
-        self.captured_image: Optional[Image.Image] = None
-        self._cam = None
-        self._timer = QTimer(self)
-
-        self.setWindowTitle("Camera Capture")
-        self.setMinimumSize(640, 520)
-        self._setup_ui()
-        self._start_camera()
-
-    def _setup_ui(self) -> None:
-        layout = QVBoxLayout(self)
-        layout.setSpacing(12)
-
-        self.preview_label = QLabel("Connecting to camera...")
-        self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.preview_label.setObjectName("cameraPreview")
-        self.preview_label.setMinimumSize(600, 400)
-        layout.addWidget(self.preview_label, stretch=1)
-
-        btn_layout = QHBoxLayout()
-        btn_layout.setSpacing(12)
-
-        self.capture_btn = QPushButton("📷 Capture Photo")
-        self.capture_btn.setFixedHeight(48)
-        self.capture_btn.setProperty("role", "success")
-        self.capture_btn.clicked.connect(self._on_capture)
-        btn_layout.addWidget(self.capture_btn)
-
-        self.cancel_btn = QPushButton("Cancel")
-        self.cancel_btn.setFixedHeight(48)
-        self.cancel_btn.setProperty("role", "danger")
-        self.cancel_btn.clicked.connect(self.reject)
-        btn_layout.addWidget(self.cancel_btn)
-
-        layout.addLayout(btn_layout)
-
-    def _start_camera(self) -> None:
-        try:
-            from app.camera.capture import CameraCapture
-            self._cam = CameraCapture(self.camera_index)
-            self._cam.open()
-            self._timer.timeout.connect(self._update_frame)
-            self._timer.start(33)  # ~30 FPS
-        except Exception as exc:
-            logger.error("Camera open error: %s", exc)
-            QMessageBox.warning(
-                self,
-                "Camera Error",
-                f"Could not open camera {self.camera_index}.\n"
-                f"Please ensure it is connected and not being used by another application.\n\n"
-                f"Details: {exc}",
-            )
-            QTimer.singleShot(100, self.reject)
-
-    def _update_frame(self) -> None:
-        if self._cam and self._cam.is_open:
-            frame = self._cam.grab_frame()
-            if frame:
-                from app.ui.preview_panel import pil_to_qpixmap
-                pix = pil_to_qpixmap(frame, max_size=800)
-                scaled = pix.scaled(
-                    self.preview_label.size(),
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation,
-                )
-                self.preview_label.setPixmap(scaled)
-
-    def _on_capture(self) -> None:
-        if self._cam and self._cam.is_open:
-            self.captured_image = self._cam.grab_frame()
-            self._cleanup()
-            self.accept()
-
-    def _cleanup(self) -> None:
-        self._timer.stop()
-        if self._cam:
-            self._cam.close()
-            self._cam = None
-
-    def closeEvent(self, event) -> None:
-        self._cleanup()
-        super().closeEvent(event)
-
-    def reject(self) -> None:
-        self._cleanup()
-        super().reject()
-
-
-# ---------------------------------------------------------------------------
 # Main Application Window
 # ---------------------------------------------------------------------------
 
@@ -228,14 +112,10 @@ class MainWindow(QMainWindow):
         self._slider_timer.setInterval(300)
         self._slider_timer.timeout.connect(self._trigger_fast_reapply)
 
-        # Background camera probe
-        self._probe_worker: Optional[CameraProbeWorker] = None
-
         self._init_window()
         self._create_menu()
         self._setup_ui()
         self._load_settings_into_ui()
-        self._check_camera_setting()
 
         # Run privacy cleanup on start
         cleanup_old_saved_files(keep_days=self.settings.get("keep_saved_days", 0))
@@ -263,11 +143,6 @@ class MainWindow(QMainWindow):
         open_action.setShortcut(QKeySequence.StandardKey.Open)
         open_action.triggered.connect(self._on_upload_clicked)
         file_menu.addAction(open_action)
-
-        cam_action = QAction("&Camera Capture...", self)
-        cam_action.setShortcut("Ctrl+Shift+C")
-        cam_action.triggered.connect(self._on_camera_clicked)
-        file_menu.addAction(cam_action)
 
         file_menu.addSeparator()
 
@@ -308,16 +183,134 @@ class MainWindow(QMainWindow):
         about_action.triggered.connect(self._show_about)
         help_menu.addAction(about_action)
 
+    def _select_preset_by_photo_size(self, size_key: str) -> None:
+        """Helper to quickly select a document preset matching a photo size."""
+        for i in range(self.preset_combo.count()):
+            p = self.preset_combo.itemData(i)
+            if p and p.get("photo_size") == size_key:
+                self.preset_combo.setCurrentIndex(i)
+                return
+
     def _setup_ui(self) -> None:
         central = QWidget()
         self.setCentralWidget(central)
         main_layout = QHBoxLayout(central)
-        main_layout.setContentsMargins(16, 16, 16, 16)
-        main_layout.setSpacing(16)
+        main_layout.setContentsMargins(12, 12, 12, 12)
+        main_layout.setSpacing(14)
 
-        # Left Column: Banners, Actions, Image Preview & Before/After
-        left_box = QVBoxLayout()
-        left_box.setSpacing(10)
+        # -------------------------------------------------------------------
+        # 1. Left SaaS Navigation Rail (iDraft Bento Style)
+        # -------------------------------------------------------------------
+        sidebar_frame = QFrame()
+        sidebar_frame.setObjectName("sidebarRail")
+        sidebar_frame.setFixedWidth(190)
+        sidebar_layout = QVBoxLayout(sidebar_frame)
+        sidebar_layout.setContentsMargins(12, 16, 12, 16)
+        sidebar_layout.setSpacing(10)
+
+        # Brand Header
+        brand_label = QLabel("⚡ PASSPORT PRO")
+        brand_label.setObjectName("sidebarBrand")
+        sidebar_layout.addWidget(brand_label)
+
+        sidebar_sub = QLabel("AI Studio • CSC Shop")
+        sidebar_sub.setObjectName("sidebarBrandSub")
+        sidebar_layout.addWidget(sidebar_sub)
+
+        sidebar_layout.addSpacing(14)
+
+        # Navigation Action Pills
+        self.nav_studio = QPushButton(" 🗂️  Studio")
+        self.nav_studio.setObjectName("navItemActive")
+        self.nav_studio.setProperty("navRole", "active")
+        sidebar_layout.addWidget(self.nav_studio)
+
+        self.nav_presets = QPushButton(" 📋  Presets")
+        self.nav_presets.setObjectName("navItem")
+        self.nav_presets.clicked.connect(lambda: self.scroll_area.ensureWidgetVisible(self.preset_group))
+        sidebar_layout.addWidget(self.nav_presets)
+
+        self.nav_backdrop = QPushButton(" 🎨  Backdrop")
+        self.nav_backdrop.setObjectName("navItem")
+        self.nav_backdrop.clicked.connect(lambda: self.scroll_area.ensureWidgetVisible(self.bg_group))
+        sidebar_layout.addWidget(self.nav_backdrop)
+
+        self.nav_specs = QPushButton(" 📐  Dimensions")
+        self.nav_specs.setObjectName("navItem")
+        self.nav_specs.clicked.connect(lambda: self.scroll_area.ensureWidgetVisible(self.size_group))
+        sidebar_layout.addWidget(self.nav_specs)
+
+        self.nav_lighting = QPushButton(" 💡  Lighting")
+        self.nav_lighting.setObjectName("navItem")
+        self.nav_lighting.clicked.connect(lambda: self.scroll_area.ensureWidgetVisible(self.light_group))
+        sidebar_layout.addWidget(self.nav_lighting)
+
+        sidebar_layout.addStretch()
+
+        self.nav_settings = QPushButton(" ⚙️  Settings")
+        self.nav_settings.setObjectName("navItem")
+        self.nav_settings.clicked.connect(self._open_settings_wizard)
+        sidebar_layout.addWidget(self.nav_settings)
+
+        shop_badge = QLabel(self.settings.get("shop_name", "CSC Digital Seva")[:20])
+        shop_badge.setObjectName("sidebarShopBadge")
+        shop_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        sidebar_layout.addWidget(shop_badge)
+
+        main_layout.addWidget(sidebar_frame)
+
+        # -------------------------------------------------------------------
+        # 2. Main Workspace Dashboard
+        # -------------------------------------------------------------------
+        workspace_widget = QWidget()
+        workspace_layout = QVBoxLayout(workspace_widget)
+        workspace_layout.setContentsMargins(0, 0, 0, 0)
+        workspace_layout.setSpacing(12)
+
+        # Top Header Bar (High Contrast SaaS Bar)
+        header_frame = QFrame()
+        header_frame.setObjectName("dashboardHeader")
+        header_layout = QHBoxLayout(header_frame)
+        header_layout.setContentsMargins(8, 4, 8, 4)
+        header_layout.setSpacing(12)
+
+        greet_box = QVBoxLayout()
+        greet_box.setSpacing(2)
+        greet_title = QLabel("Hi, Operator!")
+        greet_title.setObjectName("dashboardTitle")
+        greet_sub = QLabel("Minimalist Bento Studio • Fast AI Cutout & Multi-Sheet Print")
+        greet_sub.setObjectName("dashboardSubtitle")
+        greet_box.addWidget(greet_title)
+        greet_box.addWidget(greet_sub)
+        header_layout.addLayout(greet_box)
+
+        header_layout.addStretch()
+
+        self.upload_btn = QPushButton("+ Upload Photo")
+        self.upload_btn.setObjectName("uploadBtn")
+        self.upload_btn.setToolTip("Select photo from computer (JPG, PNG, WEBP)")
+        self.upload_btn.clicked.connect(self._on_upload_clicked)
+        header_layout.addWidget(self.upload_btn)
+
+        self.adjust_crop_btn = QPushButton("✂️ Adjust Crop...")
+        self.adjust_crop_btn.setObjectName("adjustCropBtn")
+        self.adjust_crop_btn.setToolTip("Fine-tune crop area and position manually")
+        self.adjust_crop_btn.setEnabled(False)
+        self.adjust_crop_btn.clicked.connect(self._on_adjust_crop_clicked)
+        header_layout.addWidget(self.adjust_crop_btn)
+
+        workspace_layout.addWidget(header_frame)
+
+        # Bento Grid Container
+        bento_layout = QHBoxLayout()
+        bento_layout.setSpacing(14)
+
+        # Left Hero Bento Tile (Canvas Preview)
+        hero_frame = QFrame()
+        hero_frame.setObjectName("heroCanvasCard")
+        hero_layout = QVBoxLayout(hero_frame)
+        hero_layout.setContentsMargins(14, 14, 14, 14)
+        hero_layout.setSpacing(8)
 
         # Red Blocking Banner (Defects / Unsafe Photo)
         self.banner_frame = QFrame()
@@ -339,7 +332,7 @@ class MainWindow(QMainWindow):
         self.confirm_defect_cb.toggled.connect(self._on_defect_confirmation_toggled)
         banner_layout.addWidget(self.confirm_defect_cb)
 
-        left_box.addWidget(self.banner_frame)
+        hero_layout.addWidget(self.banner_frame)
 
         # Amber Warning Banner (Non-blocking notices, e.g. multiple faces)
         self.warn_frame = QFrame()
@@ -354,76 +347,44 @@ class MainWindow(QMainWindow):
         self.warn_label.setWordWrap(True)
         warn_layout.addWidget(self.warn_label)
 
-        left_box.addWidget(self.warn_frame)
-
-        # SaaS Header Bento Bar (Hero Navigation & Studio Identity)
-        header_frame = QFrame()
-        header_frame.setObjectName("headerBento")
-        header_layout = QHBoxLayout(header_frame)
-        header_layout.setContentsMargins(0, 0, 0, 2)
-        header_layout.setSpacing(10)
-
-        brand_pill = QLabel("⚡ PASSPORT STUDIO")
-        brand_pill.setObjectName("brandPill")
-        brand_pill.setStyleSheet(
-            "QLabel#brandPill { font-size: 13px; font-weight: 800; letter-spacing: 0.8px; padding: 4px 10px; }"
-        )
-        header_layout.addWidget(brand_pill)
-        header_layout.addStretch()
-
-        self.upload_btn = QPushButton("📁 Upload Photo")
-        self.upload_btn.setObjectName("uploadBtn")
-        self.upload_btn.setToolTip("Select photo from computer (JPG, PNG, WEBP)")
-        self.upload_btn.clicked.connect(self._on_upload_clicked)
-        header_layout.addWidget(self.upload_btn)
-
-        self.camera_btn = QPushButton("📷 Live Camera")
-        self.camera_btn.setObjectName("cameraBtn")
-        self.camera_btn.setToolTip("Capture photo directly using webcam")
-        self.camera_btn.clicked.connect(self._on_camera_clicked)
-        header_layout.addWidget(self.camera_btn)
-
-        self.adjust_crop_btn = QPushButton("✂️ Adjust Crop...")
-        self.adjust_crop_btn.setObjectName("adjustCropBtn")
-        self.adjust_crop_btn.setToolTip("Fine-tune crop area and position manually")
-        self.adjust_crop_btn.setEnabled(False)
-        self.adjust_crop_btn.clicked.connect(self._on_adjust_crop_clicked)
-        header_layout.addWidget(self.adjust_crop_btn)
-
-        left_box.addWidget(header_frame)
+        hero_layout.addWidget(self.warn_frame)
 
         # Preview Widget
         self.preview_panel = PreviewPanel(self)
-        left_box.addWidget(self.preview_panel, stretch=1)
+        hero_layout.addWidget(self.preview_panel, stretch=1)
 
         # Progress bar & status line
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
-        left_box.addWidget(self.progress_bar)
+        hero_layout.addWidget(self.progress_bar)
 
         self.status_label = QLabel("Ready. Select or drop a photo to begin.")
         self.status_label.setObjectName("statusLabel")
-        left_box.addWidget(self.status_label)
+        hero_layout.addWidget(self.status_label)
 
-        main_layout.addLayout(left_box, stretch=3)
+        bento_layout.addWidget(hero_frame, stretch=3)
 
-        # Right Column: Controls & Settings in ScrollArea
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setMinimumWidth(420)
-        scroll.setMaximumWidth(470)
+        # Right Bento Column: ScrollArea containing distinct Bento cards
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setObjectName("bentoScrollArea")
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll_area.setMinimumWidth(430)
+        self.scroll_area.setMaximumWidth(470)
 
         right_widget = QWidget()
         right_box = QVBoxLayout(right_widget)
-        right_box.setContentsMargins(10, 8, 18, 14)
+        right_box.setContentsMargins(8, 6, 14, 12)
         right_box.setSpacing(14)
 
-        # Preset Selector
-        preset_group = QGroupBox("📋 Quick Document Presets")
-        preset_layout = QVBoxLayout(preset_group)
+        # Preset Bento Card (Obsidian Dark High-Contrast Card)
+        self.preset_group = QGroupBox("📋 Quick Document Presets")
+        self.preset_group.setObjectName("presetBentoCard")
+        preset_layout = QVBoxLayout(self.preset_group)
         preset_layout.setContentsMargins(14, 18, 14, 14)
+        preset_layout.setSpacing(8)
+
         self.preset_combo = QComboBox()
         self.preset_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         self.preset_combo.setMinimumContentsLength(16)
@@ -434,11 +395,24 @@ class MainWindow(QMainWindow):
             self.preset_combo.addItem(p["name"], p)
         self.preset_combo.currentIndexChanged.connect(self._on_preset_selected)
         preset_layout.addWidget(self.preset_combo)
-        right_box.addWidget(preset_group)
 
-        # Background Group
-        bg_group = QGroupBox("🎨 Background Color")
-        bg_layout = QGridLayout(bg_group)
+        # Fast 1-click Preset micro-pills
+        pill_layout = QHBoxLayout()
+        pill_layout.setSpacing(6)
+        for label, p_size in [("35x45", "35x45"), ("51x51", "51x51"), ("PAN", "25x35"), ("Stamp", "20x25")]:
+            pill_btn = QPushButton(label)
+            pill_btn.setProperty("pillTag", True)
+            pill_btn.setToolTip(f"1-Click select {label} preset")
+            pill_btn.clicked.connect(lambda _, ps=p_size: self._select_preset_by_photo_size(ps))
+            pill_layout.addWidget(pill_btn)
+        preset_layout.addLayout(pill_layout)
+
+        right_box.addWidget(self.preset_group)
+
+        # Background Bento Card
+        self.bg_group = QGroupBox("🎨 Background Color")
+        self.bg_group.setObjectName("bgBentoCard")
+        bg_layout = QGridLayout(self.bg_group)
         bg_layout.setContentsMargins(14, 18, 14, 14)
         bg_layout.setHorizontalSpacing(10)
         bg_layout.setVerticalSpacing(12)
@@ -474,11 +448,12 @@ class MainWindow(QMainWindow):
         self.custom_color_btn.clicked.connect(self._on_pick_custom_color)
         bg_layout.addWidget(self.custom_color_btn, 1, 0, 1, 3)
 
-        right_box.addWidget(bg_group)
+        right_box.addWidget(self.bg_group)
 
         # Photo & Print Layout Group (&& prevents mnemonic underscore on P)
-        size_group = QGroupBox("📐 Photo Size && Print Copies")
-        size_layout = QGridLayout(size_group)
+        self.size_group = QGroupBox("📐 Photo Size && Print Copies")
+        self.size_group.setObjectName("sizeBentoCard")
+        size_layout = QGridLayout(self.size_group)
         size_layout.setContentsMargins(14, 18, 14, 14)
         size_layout.setHorizontalSpacing(10)
         size_layout.setVerticalSpacing(12)
@@ -525,11 +500,12 @@ class MainWindow(QMainWindow):
         self.copies_spin.valueChanged.connect(self._on_copies_changed)
         size_layout.addWidget(self.copies_spin, 2, 1)
 
-        right_box.addWidget(size_group)
+        right_box.addWidget(self.size_group)
 
         # Lighting Adjustments Group (&& prevents mnemonic underscore on T)
-        light_group = QGroupBox("💡 Lighting && Touch-up")
-        light_layout = QVBoxLayout(light_group)
+        self.light_group = QGroupBox("💡 Lighting && Touch-up")
+        self.light_group.setObjectName("lightBentoCard")
+        light_layout = QVBoxLayout(self.light_group)
         light_layout.setContentsMargins(14, 18, 14, 14)
         light_layout.setSpacing(10)
 
@@ -553,11 +529,12 @@ class MainWindow(QMainWindow):
         reset_btn.clicked.connect(self._reset_lighting_sliders)
         light_layout.addWidget(reset_btn)
 
-        right_box.addWidget(light_group)
+        right_box.addWidget(self.light_group)
 
         # Bento Card: Action Launchpad (Primary SaaS Execution Hub)
-        act_group = QGroupBox("🚀 Action Launchpad")
-        act_layout = QVBoxLayout(act_group)
+        self.act_group = QGroupBox("🚀 Action Launchpad")
+        self.act_group.setObjectName("launchpadBentoCard")
+        act_layout = QVBoxLayout(self.act_group)
         act_layout.setContentsMargins(14, 18, 14, 14)
         act_layout.setSpacing(12)
 
@@ -584,11 +561,14 @@ class MainWindow(QMainWindow):
         self.save_btn.setEnabled(False)
         act_layout.addWidget(self.save_btn)
 
-        right_box.addWidget(act_group)
+        right_box.addWidget(self.act_group)
         right_box.addStretch()
 
-        scroll.setWidget(right_widget)
-        main_layout.addWidget(scroll, stretch=2)
+        self.scroll_area.setWidget(right_widget)
+        bento_layout.addWidget(self.scroll_area, stretch=2)
+
+        workspace_layout.addLayout(bento_layout, stretch=1)
+        main_layout.addWidget(workspace_widget, stretch=1)
 
         # Status Bar
         self.status_bar = QStatusBar()
@@ -660,15 +640,6 @@ class MainWindow(QMainWindow):
         self.auto_enhance_btn.setChecked(ae)
         self.auto_enhance_btn.setText(f"✨ Auto Enhance: {'ON' if ae else 'OFF'}")
 
-    def _check_camera_setting(self) -> None:
-        cam_idx = self.settings.get("camera_index", 0)
-        if cam_idx == -1:
-            self.camera_btn.setEnabled(False)
-            self.camera_btn.setToolTip("Camera is disabled in Settings")
-        else:
-            self.camera_btn.setEnabled(True)
-            self.camera_btn.setToolTip("Capture photo directly using webcam")
-
     # -----------------------------------------------------------------------
     # Drag and Drop
     # -----------------------------------------------------------------------
@@ -703,18 +674,6 @@ class MainWindow(QMainWindow):
         )
         if path:
             self._load_image_file(Path(path))
-
-    def _on_camera_clicked(self) -> None:
-        cam_idx = self.settings.get("camera_index", 0)
-        if cam_idx < 0:
-            QMessageBox.information(self, "Camera Disabled", "Camera capture is disabled in Settings.")
-            return
-        dialog = CameraCaptureDialog(cam_idx, self)
-        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.captured_image:
-            self.current_image = dialog.captured_image
-            self.preview_panel.set_before_image(self.current_image)
-            self.status_label.setText("Photo captured. Processing automatically...")
-            self._start_pipeline(full_run=True)
 
     def _load_image_file(self, path: Path) -> None:
         try:
@@ -875,9 +834,6 @@ class MainWindow(QMainWindow):
 
     def _set_ui_busy(self, busy: bool) -> None:
         self.upload_btn.setEnabled(not busy)
-        self._check_camera_setting()
-        if busy:
-            self.camera_btn.setEnabled(False)
         self.process_btn.setEnabled(not busy)
         self.adjust_crop_btn.setEnabled(not busy and self.pipeline.has_cached_data())
         if busy:
@@ -1319,7 +1275,6 @@ class MainWindow(QMainWindow):
 
     def _on_settings_reloaded(self) -> None:
         self._load_settings_into_ui()
-        self._check_camera_setting()
         shop_title = self.settings.get("shop_name", "").strip()
         if shop_title:
             self.setWindowTitle(f"Passport Photo App — {shop_title}")

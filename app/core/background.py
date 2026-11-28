@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _session = None
-_MAX_AI_SIZE = 2000  # Downscale longer side to this for speed
+_MAX_AI_SIZE = 1200  # Downscale longer side to this for blazing fast AI processing (preserves >600 DPI)
 
 
 def _get_session():

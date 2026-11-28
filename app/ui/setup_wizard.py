@@ -129,35 +129,16 @@ class ShopNamePage(QWizardPage):
 # ---------------------------------------------------------------------------
 
 class DeviceSelectionPage(QWizardPage):
-    """Page 2: Camera and printer selection."""
+    """Page 2: Photo printer selection and calibration."""
 
     def __init__(self, settings: SettingsManager) -> None:
         super().__init__()
         self._settings = settings
-        self.setTitle("Camera & Printer Selection")
-        self.setSubTitle("Select your default devices. You can also upload photos from disk without a camera.")
+        self.setTitle("Printer Selection & Calibration")
+        self.setSubTitle("Select your default photo printer. You can also print calibration sheets or adjust scale offsets.")
 
         layout = QVBoxLayout(self)
         layout.setSpacing(16)
-
-        # Camera group
-        cam_group = QGroupBox("Webcam / Camera")
-        cam_layout = QHBoxLayout(cam_group)
-        self._camera_combo = QComboBox()
-        self._camera_combo.addItem("No camera (file upload only)", -1)
-        cam_layout.addWidget(self._camera_combo, stretch=1)
-
-        self._refresh_cam_btn = QPushButton("Refresh")
-        self._refresh_cam_btn.setFixedWidth(100)
-        self._refresh_cam_btn.clicked.connect(self._refresh_cameras)
-        cam_layout.addWidget(self._refresh_cam_btn)
-
-        self._test_cam_btn = QPushButton("Test")
-        self._test_cam_btn.setFixedWidth(80)
-        self._test_cam_btn.clicked.connect(self._test_camera)
-        cam_layout.addWidget(self._test_cam_btn)
-
-        layout.addWidget(cam_group)
 
         # Printer group
         prn_group = QGroupBox("Photo Printer")
@@ -218,46 +199,7 @@ class DeviceSelectionPage(QWizardPage):
         layout.addWidget(cal_group)
         layout.addStretch()
 
-        self._refresh_cameras()
         self._refresh_printers()
-
-    def _refresh_cameras(self) -> None:
-        self._camera_combo.clear()
-        self._camera_combo.addItem("No camera (file upload only)", -1)
-        try:
-            from app.camera.capture import list_cameras
-            cameras = list_cameras()
-            for idx, name in cameras:
-                self._camera_combo.addItem(name, idx)
-            saved = self._settings.get("camera_index", 0)
-            for i in range(self._camera_combo.count()):
-                if self._camera_combo.itemData(i) == saved:
-                    self._camera_combo.setCurrentIndex(i)
-                    break
-        except Exception as exc:
-            logger.warning("Could not list cameras: %s", exc)
-
-    def _test_camera(self) -> None:
-        idx = self._camera_combo.currentData()
-        if idx is None or idx == -1:
-            QMessageBox.information(self, "Camera", "No camera selected.")
-            return
-        try:
-            from app.camera.capture import CameraCapture
-            cam = CameraCapture(idx)
-            cam.open()
-            frame = cam.grab_frame()
-            cam.close()
-            if frame:
-                QMessageBox.information(
-                    self,
-                    "Camera Test",
-                    f"Camera {idx} connected successfully!\nResolution: {frame.size[0]}x{frame.size[1]} px"
-                )
-            else:
-                QMessageBox.warning(self, "Camera Test", "Camera connected but could not capture a frame.")
-        except Exception as exc:
-            QMessageBox.warning(self, "Camera Test", f"Camera test failed:\n{exc}")
 
     def _refresh_printers(self) -> None:
         self._printer_combo.clear()
@@ -279,10 +221,9 @@ class DeviceSelectionPage(QWizardPage):
             logger.warning("Could not list printers: %s", exc)
 
     def get_values(self) -> dict:
-        cam_idx = self._camera_combo.currentData()
         prn_name = self._printer_combo.currentData()
         return {
-            "camera_index": cam_idx if cam_idx is not None else -1,
+            "camera_index": -1,
             "printer_name": prn_name if prn_name else "",
             "calibration_scale_x": self._cal_scale_x.value(),
             "calibration_scale_y": self._cal_scale_y.value(),

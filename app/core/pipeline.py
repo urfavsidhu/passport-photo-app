@@ -89,6 +89,15 @@ class PassportPipeline:
         self._original = ImageOps.exif_transpose(image)
         if self._original.mode not in ("RGB", "RGBA"):
             self._original = self._original.convert("RGB")
+        
+        # Optimize high-res camera uploads (e.g. 4000x3000) to max 1600px for speed & memory
+        max_dim = max(self._original.size)
+        if max_dim > 1600:
+            scale_ratio = 1600.0 / max_dim
+            opt_size = (int(round(self._original.width * scale_ratio)), int(round(self._original.height * scale_ratio)))
+            self._original = self._original.resize(opt_size, Image.LANCZOS)
+            logger.info("Resized high-res image %s -> %s for fast processing", (self._original.width, self._original.height), opt_size)
+
         timings["load"] = time.time() - t0
         logger.info("Image loaded: %s, size=%s", self._original.mode, self._original.size)
 

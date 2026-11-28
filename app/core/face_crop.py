@@ -181,38 +181,48 @@ def _detect_mediapipe(rgb_array: np.ndarray) -> List[FaceBox]:
     return faces
 
 
+_cached_face_cascades = None
+_cached_eye_cascade = None
+
+
+def _get_opencv_cascades():
+    """Load and cache OpenCV Haar cascade classifiers once."""
+    global _cached_face_cascades, _cached_eye_cascade
+    if _cached_face_cascades is None:
+        _cached_face_cascades = []
+        for c_path in [
+            cv2.data.haarcascades + "haarcascade_frontalface_default.xml",
+            cv2.data.haarcascades + "haarcascade_frontalface_alt2.xml",
+        ]:
+            c = cv2.CascadeClassifier(c_path)
+            if not c.empty():
+                _cached_face_cascades.append(c)
+        _cached_eye_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_eye.xml")
+    return _cached_face_cascades, _cached_eye_cascade
+
+
 def _detect_opencv(gray_array: np.ndarray) -> List[FaceBox]:
     """Detect faces using OpenCV Haar cascades with eye landmark detection."""
     faces = []
     try:
-        # Cascades to try in order of precision
-        cascades = [
-            cv2.data.haarcascades + "haarcascade_frontalface_default.xml",
-            cv2.data.haarcascades + "haarcascade_frontalface_alt2.xml",
-        ]
+        face_cascades, eye_cascade = _get_opencv_cascades()
         
         detections = []
-        for c_path in cascades:
-            cascade = cv2.CascadeClassifier(c_path)
-            if not cascade.empty():
-                dets = cascade.detectMultiScale(
-                    gray_array,
-                    scaleFactor=1.1,
-                    minNeighbors=4,
-                    minSize=(60, 60),
-                )
-                if len(dets) > 0:
-                    detections = dets
-                    break
-
-        # Eye cascade for landmark extraction
-        eye_cascade_path = cv2.data.haarcascades + "haarcascade_eye.xml"
-        eye_cascade = cv2.CascadeClassifier(eye_cascade_path)
+        for cascade in face_cascades:
+            dets = cascade.detectMultiScale(
+                gray_array,
+                scaleFactor=1.1,
+                minNeighbors=4,
+                minSize=(60, 60),
+            )
+            if len(dets) > 0:
+                detections = dets
+                break
 
         for (x, y, w, h) in detections:
             left_eye = right_eye = None
             has_eyes = False
-            if not eye_cascade.empty():
+            if eye_cascade is not None and not eye_cascade.empty():
                 # Search for eyes in upper half of face
                 roi_upper = gray_array[y : y + int(h * 0.55), x : x + w]
                 eyes = eye_cascade.detectMultiScale(roi_upper, scaleFactor=1.1, minNeighbors=3, minSize=(15, 15))
@@ -241,6 +251,7 @@ def detect_face(image: Image.Image) -> Tuple[FaceBox, List[str]]:
     """Detect the largest face in the image.
 
     Tries MediaPipe first, falls back to OpenCV Haar cascade.
+    Accelerated with fast downscale detection and precise coordinate upscaling.
 
     Args:
         image: PIL Image (RGB).
@@ -252,7 +263,22 @@ def detect_face(image: Image.Image) -> Tuple[FaceBox, List[str]]:
         NoFaceFoundError: If no face is detected.
     """
     warnings = []
-    rgb_array = np.array(image.convert("RGB"))
+    rgb_img = image.convert("RGB")
+    orig_w, orig_h = rgb_img.size
+    max_dim = max(orig_w, orig_h)
+
+    # Fast detection: scale to max 800px to avoid multi-second lag on high-res camera photos
+    if max_dim > 800:
+        scale = 800.0 / max_dim
+        detect_w = max(1, int(round(orig_w * scale)))
+        detect_h = max(1, int(round(orig_h * scale)))
+        detect_img = rgb_img.resize((detect_w, detect_h), Image.BILINEAR)
+        inv_scale = 1.0 / scale
+    else:
+        detect_img = rgb_img
+        inv_scale = 1.0
+
+    rgb_array = np.array(detect_img)
 
     # Try MediaPipe first
     faces = _detect_mediapipe(rgb_array)
@@ -265,6 +291,25 @@ def detect_face(image: Image.Image) -> Tuple[FaceBox, List[str]]:
 
     if not faces:
         raise NoFaceFoundError()
+
+    # Scale detected faces back to original image dimensions if downsampled
+    if inv_scale != 1.0:
+        scaled_faces = []
+        for f in faces:
+            def _scale_pt(pt):
+                return (int(round(pt[0] * inv_scale)), int(round(pt[1] * inv_scale))) if pt else None
+            scaled_faces.append(FaceBox(
+                x=int(round(f.x * inv_scale)),
+                y=int(round(f.y * inv_scale)),
+                width=int(round(f.width * inv_scale)),
+                height=int(round(f.height * inv_scale)),
+                confidence=f.confidence,
+                left_eye=_scale_pt(f.left_eye),
+                right_eye=_scale_pt(f.right_eye),
+                nose=_scale_pt(f.nose),
+                mouth=_scale_pt(f.mouth),
+            ))
+        faces = scaled_faces
 
     # Score and rank candidates: prioritize confirmed eyes, confidence, and size
     def score_face(f: FaceBox) -> float:

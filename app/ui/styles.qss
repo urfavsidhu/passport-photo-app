@@ -13,6 +13,140 @@ QMainWindow, QDialog, QWizard {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #080C14, stop:0.4 #0E1524, stop:1 #0A111F);
 }
 
+/* SaaS Navigation Rail (iDraft Bento Style) */
+QFrame#sidebarRail {
+    background-color: rgba(22, 27, 34, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-top: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 18px;
+}
+
+QLabel#sidebarBrand {
+    font-size: 14px;
+    font-weight: 800;
+    color: #F8FAFC;
+    letter-spacing: 0.8px;
+    padding-left: 4px;
+}
+
+QLabel#sidebarBrandSub {
+    font-size: 10px;
+    font-weight: 700;
+    color: #94A3B8;
+    padding-left: 4px;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+}
+
+QPushButton#navItem {
+    background-color: transparent;
+    color: #94A3B8;
+    border: none;
+    border-radius: 12px;
+    text-align: left;
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    min-height: 38px;
+}
+QPushButton#navItem:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+    color: #F8FAFC;
+}
+
+QPushButton#navItemActive {
+    background-color: #23272F;
+    color: #38BDF8;
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    border-radius: 12px;
+    text-align: left;
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 700;
+    min-height: 38px;
+}
+
+QLabel#sidebarShopBadge {
+    background-color: rgba(56, 189, 248, 0.10);
+    border: 1px solid rgba(56, 189, 248, 0.22);
+    border-radius: 8px;
+    color: #38BDF8;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 6px 10px;
+}
+
+/* Dashboard Header */
+QFrame#dashboardHeader {
+    background-color: transparent;
+    border: none;
+}
+QLabel#dashboardTitle {
+    font-size: 20px;
+    font-weight: 800;
+    color: #F8FAFC;
+    letter-spacing: -0.3px;
+}
+QLabel#dashboardSubtitle {
+    font-size: 12px;
+    font-weight: 500;
+    color: #94A3B8;
+}
+
+/* Top SaaS CTA Button (+ Upload Photo) */
+QPushButton#uploadBtn {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0284C7, stop:1 #38BDF8);
+    color: #080C14;
+    font-size: 13px;
+    font-weight: 800;
+    border-radius: 20px;
+    padding: 8px 22px;
+    min-height: 40px;
+    border: none;
+}
+QPushButton#uploadBtn:hover {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0369A1, stop:1 #0284C7);
+    color: #FFFFFF;
+}
+
+QPushButton#adjustCropBtn {
+    border-radius: 20px;
+    padding: 8px 18px;
+    min-height: 40px;
+    font-weight: 600;
+}
+
+/* Hero Bento Preview Card */
+QFrame#heroCanvasCard {
+    background-color: rgba(20, 28, 44, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-top: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 18px;
+}
+
+/* Preset Bento Card */
+QGroupBox#presetBentoCard {
+    background-color: rgba(20, 28, 44, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-top: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 18px;
+    color: #38BDF8;
+}
+
+QPushButton[pillTag="true"] {
+    background-color: rgba(255, 255, 255, 0.06);
+    color: #F8FAFC;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 14px;
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    min-height: 28px;
+}
+QPushButton[pillTag="true"]:hover {
+    background-color: rgba(255, 255, 255, 0.16);
+}
+
 /* --------------- Top Action Buttons & General Buttons --------------- */
 
 QPushButton {

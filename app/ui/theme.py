@@ -63,14 +63,14 @@ DARK_THEME: Dict[str, str] = {
     "scrollbar_handle": "rgba(255, 255, 255, 0.16)",
 }
 
-# Light Glassmorphism SaaS Palette (Frosted Pearl + Pure White Glass + Electric Blue)
+# Light Glassmorphism SaaS Palette (Frosted Pearl + Pure White Glass + Obsidian Accents)
 LIGHT_THEME: Dict[str, str] = {
-    "window": "#F0F4F9",
-    "window_gradient": "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #F8FAFC, stop:0.4 #F1F5F9, stop:1 #E2E8F0)",
-    "panel": "rgba(255, 255, 255, 0.82)",
+    "window": "#EEF2F6",
+    "window_gradient": "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #F8FAFC, stop:0.5 #EEF2F6, stop:1 #E2E8F0)",
+    "panel": "rgba(255, 255, 255, 0.92)",
     "panel_solid": "#FFFFFF",
-    "panel_alt": "rgba(241, 245, 249, 0.80)",
-    "border": "rgba(203, 213, 225, 0.85)",
+    "panel_alt": "rgba(241, 245, 249, 0.85)",
+    "border": "rgba(0, 0, 0, 0.07)",
     "border_highlight": "rgba(255, 255, 255, 0.98)",
     "badge_bg": "rgba(2, 132, 199, 0.08)",
     "badge_border": "rgba(2, 132, 199, 0.20)",
@@ -78,7 +78,7 @@ LIGHT_THEME: Dict[str, str] = {
     "button": "rgba(255, 255, 255, 0.88)",
     "button_hover": "#FFFFFF",
     "button_pressed": "#E2E8F0",
-    "text": "#0F172A",
+    "text": "#181B20",
     "text_muted": "#64748B",
     "text_dark": "#FFFFFF",
     "accent": "#0284C7",
@@ -92,18 +92,18 @@ LIGHT_THEME: Dict[str, str] = {
     "cta_gradient_save": "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1D4ED8, stop:1 #2563EB)",
     "danger": "#DC2626",
     "danger_hover": "#B91C1C",
-    "banner_bg": "rgba(254, 242, 242, 0.92)",
+    "banner_bg": "rgba(254, 242, 242, 0.95)",
     "banner_border": "rgba(239, 68, 68, 0.40)",
     "banner_text": "#991B1B",
-    "warn_bg": "rgba(255, 251, 235, 0.92)",
+    "warn_bg": "rgba(255, 251, 235, 0.95)",
     "warn_border": "rgba(245, 158, 11, 0.40)",
     "warn_text": "#92400E",
     "slider_groove": "#E2E8F0",
     "slider_active": "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0284C7, stop:1 #38BDF8)",
     "slider_handle": "#FFFFFF",
     "slider_handle_border": "#0284C7",
-    "input_bg": "rgba(255, 255, 255, 0.92)",
-    "input_border": "#CBD5E1",
+    "input_bg": "rgba(255, 255, 255, 0.95)",
+    "input_border": "rgba(0, 0, 0, 0.12)",
     "input_focus_border": "#0284C7",
     "scrollbar_bg": "transparent",
     "scrollbar_handle": "#CBD5E1",
@@ -164,6 +164,51 @@ def get_stylesheet(is_dark: bool) -> str:
     disabled_btn_border = "rgba(255, 255, 255, 0.06)" if is_dark else "#E2E8F0"
     disabled_btn_text = "#475569" if is_dark else "#94A3B8"
 
+    # Minimalist Bento SaaS elements
+    if is_dark:
+        sidebar_bg = "rgba(22, 27, 34, 0.92)"
+        nav_active_bg = "#23272F"
+        nav_active_color = "#38BDF8"
+        nav_active_border = "1px solid rgba(56, 189, 248, 0.35)"
+        upload_btn_bg = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0284C7, stop:1 #38BDF8)"
+        upload_btn_text = "#080C14"
+        upload_btn_hover = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0369A1, stop:1 #0284C7)"
+        preset_card_bg = "rgba(20, 28, 44, 0.72)"
+        preset_card_border = "rgba(255, 255, 255, 0.08)"
+        preset_card_top_border = "rgba(255, 255, 255, 0.16)"
+        preset_card_badge_bg = "rgba(56, 189, 248, 0.10)"
+        preset_card_badge_border = "rgba(56, 189, 248, 0.22)"
+        preset_card_badge_text = "#38BDF8"
+        preset_combo_bg = "rgba(13, 19, 31, 0.72)"
+        preset_combo_color = "#F8FAFC"
+        preset_combo_border = "rgba(255, 255, 255, 0.12)"
+        pill_tag_bg = "rgba(255, 255, 255, 0.06)"
+        pill_tag_text = "#F8FAFC"
+        pill_tag_border = "rgba(255, 255, 255, 0.12)"
+        pill_tag_hover = "rgba(255, 255, 255, 0.16)"
+    else:
+        # Light mode matching reference image (iDraft style high-contrast obsidian elements)
+        sidebar_bg = "rgba(255, 255, 255, 0.95)"
+        nav_active_bg = "#181B20"
+        nav_active_color = "#FFFFFF"
+        nav_active_border = "none"
+        upload_btn_bg = "#181B20"
+        upload_btn_text = "#FFFFFF"
+        upload_btn_hover = "#2D3139"
+        preset_card_bg = "#181B20"
+        preset_card_border = "#23272F"
+        preset_card_top_border = "#2D333B"
+        preset_card_badge_bg = "rgba(255, 255, 255, 0.14)"
+        preset_card_badge_border = "rgba(255, 255, 255, 0.22)"
+        preset_card_badge_text = "#FFFFFF"
+        preset_combo_bg = "#232832"
+        preset_combo_color = "#FFFFFF"
+        preset_combo_border = "rgba(255, 255, 255, 0.22)"
+        pill_tag_bg = "rgba(255, 255, 255, 0.12)"
+        pill_tag_text = "#FFFFFF"
+        pill_tag_border = "rgba(255, 255, 255, 0.20)"
+        pill_tag_hover = "rgba(255, 255, 255, 0.26)"
+
     return f"""
 QWidget {{
     font-family: "Segoe UI", "Arial", sans-serif;
@@ -174,6 +219,116 @@ QWidget {{
 
 QMainWindow, QDialog, QWizard {{
     background: {t["window_gradient"]};
+}}
+
+/* SaaS Navigation Rail (iDraft Bento Style) */
+QFrame#sidebarRail {{
+    background-color: {sidebar_bg};
+    border: 1px solid {t["border"]};
+    border-top: 1px solid {t["border_highlight"]};
+    border-radius: 18px;
+}}
+
+QLabel#sidebarBrand {{
+    font-size: 14px;
+    font-weight: 800;
+    color: {t["text"]};
+    letter-spacing: 0.8px;
+    padding-left: 4px;
+}}
+
+QLabel#sidebarBrandSub {{
+    font-size: 10px;
+    font-weight: 700;
+    color: {t["text_muted"]};
+    padding-left: 4px;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+}}
+
+QPushButton#navItem {{
+    background-color: transparent;
+    color: {t["text_muted"]};
+    border: none;
+    border-radius: 12px;
+    text-align: left;
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    min-height: 38px;
+}}
+QPushButton#navItem:hover {{
+    background-color: {t["button_hover"]};
+    color: {t["text"]};
+}}
+
+QPushButton#navItemActive {{
+    background-color: {nav_active_bg};
+    color: {nav_active_color};
+    border: {nav_active_border};
+    border-radius: 12px;
+    text-align: left;
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 700;
+    min-height: 38px;
+}}
+
+QLabel#sidebarShopBadge {{
+    background-color: {t["badge_bg"]};
+    border: 1px solid {t["badge_border"]};
+    border-radius: 8px;
+    color: {t["badge_text"]};
+    font-size: 11px;
+    font-weight: 700;
+    padding: 6px 10px;
+}}
+
+/* Dashboard Header */
+QFrame#dashboardHeader {{
+    background-color: transparent;
+    border: none;
+}}
+QLabel#dashboardTitle {{
+    font-size: 20px;
+    font-weight: 800;
+    color: {t["text"]};
+    letter-spacing: -0.3px;
+}}
+QLabel#dashboardSubtitle {{
+    font-size: 12px;
+    font-weight: 500;
+    color: {t["text_muted"]};
+}}
+
+/* Top SaaS CTA Button (+ Upload Photo) */
+QPushButton#uploadBtn {{
+    background: {upload_btn_bg};
+    color: {upload_btn_text};
+    font-size: 13px;
+    font-weight: 700;
+    border-radius: 20px;
+    padding: 8px 22px;
+    min-height: 40px;
+    border: none;
+}}
+QPushButton#uploadBtn:hover {{
+    background: {upload_btn_hover};
+}}
+
+QPushButton#adjustCropBtn {{
+    border-radius: 20px;
+    padding: 8px 18px;
+    min-height: 40px;
+    font-weight: 600;
+}}
+
+/* Hero Bento Preview Card */
+QFrame#heroCanvasCard {{
+    background-color: {t["panel"]};
+    border: 1px solid {t["border"]};
+    border-top: 1px solid {t["border_highlight"]};
+    border-radius: 18px;
 }}
 
 /* Top Action Buttons & General SaaS Buttons */
@@ -332,7 +487,7 @@ QGroupBox {{
     background-color: {t["panel"]};
     border: 1px solid {t["border"]};
     border-top: 1px solid {t["border_highlight"]};
-    border-radius: 14px;
+    border-radius: 18px;
     margin-top: 14px;
     padding: 16px 14px 14px 14px;
 }}
@@ -348,6 +503,44 @@ QGroupBox::title {{
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.5px;
+}}
+
+/* Preset Bento Card (High Contrast Obsidian Card) */
+QGroupBox#presetBentoCard {{
+    background-color: {preset_card_bg};
+    border: 1px solid {preset_card_border};
+    border-top: 1px solid {preset_card_top_border};
+    border-radius: 18px;
+    color: {preset_card_badge_text};
+}}
+QGroupBox#presetBentoCard::title {{
+    background-color: {preset_card_badge_bg};
+    border: 1px solid {preset_card_badge_border};
+    border-radius: 6px;
+    color: {preset_card_badge_text};
+}}
+QGroupBox#presetBentoCard QComboBox {{
+    background-color: {preset_combo_bg};
+    color: {preset_combo_color};
+    border: 1px solid {preset_combo_border};
+}}
+QGroupBox#presetBentoCard QComboBox QAbstractItemView {{
+    background-color: {preset_combo_bg};
+    color: {preset_combo_color};
+}}
+
+QPushButton[pillTag="true"] {{
+    background-color: {pill_tag_bg};
+    color: {pill_tag_text};
+    border: 1px solid {pill_tag_border};
+    border-radius: 14px;
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    min-height: 28px;
+}}
+QPushButton[pillTag="true"]:hover {{
+    background-color: {pill_tag_hover};
 }}
 
 /* Glass Inputs & Dropdowns */
