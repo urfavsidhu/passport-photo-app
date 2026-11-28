@@ -26,8 +26,12 @@ def list_cameras() -> List[Tuple[int, str]]:
     description like "Camera 0".
     """
     cameras = []
-    # Temporarily suppress OpenCV C++ logging while probing camera indices
-    old_level = getattr(cv2, "LOG_LEVEL_SILENT", cv2.LOG_LEVEL_ERROR)
+    # Save the original OpenCV log level and restore it after probing
+    try:
+        old_level = cv2.getLogLevel()
+    except AttributeError:
+        old_level = getattr(cv2, "LOG_LEVEL_INFO", 3)
+
     try:
         cv2.setLogLevel(cv2.LOG_LEVEL_ERROR)
     except Exception:
@@ -94,12 +98,19 @@ class CameraCapture:
                 "Make sure it is connected and not in use by another app."
             )
 
-        # Set a reasonable resolution
-        self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-        self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        # Request highest resolution (try 1080p first, then fallback to 720p)
+        self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+        self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+        actual_w = self._cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+        actual_h = self._cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        if actual_w < 1920 or actual_h < 1080:
+            self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+            self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
         self._is_open = True
-        logger.info("Camera %d opened", self._index)
+        final_w = int(self._cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        final_h = int(self._cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        logger.info("Camera %d opened (%dx%d px)", self._index, final_w, final_h)
 
     def close(self) -> None:
         """Release the camera."""

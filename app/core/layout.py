@@ -102,6 +102,7 @@ def build_sheets(
     copies: int = 8,
     gap_mm: float = 2.0,
     margin_mm: float = 5.0,
+    min_printer_margin_mm: float = 3.0,
     cut_lines: bool = True,
     orientation: str = "auto",
 ) -> List[Image.Image]:
@@ -114,6 +115,8 @@ def build_sheets(
         copies: Total number of copies to place.
         gap_mm: Gap between photos in mm.
         margin_mm: Page margin in mm.
+        min_printer_margin_mm: Minimum allowable printer margin in mm (default 3.0).
+            The layout will never silently reduce margins below this threshold.
         cut_lines: Whether to draw cut marks.
         orientation: 'portrait', 'landscape', or 'auto' (pick best fit).
 
@@ -122,7 +125,10 @@ def build_sheets(
     """
     photo_w_px, photo_h_px = photo.size
     gap_px = mm_to_px(gap_mm, dpi)
-    margin_px = mm_to_px(margin_mm, dpi)
+
+    # Respect min_printer_margin_mm: never go below this margin
+    effective_margin_mm = max(margin_mm, min_printer_margin_mm)
+    margin_px = mm_to_px(effective_margin_mm, dpi)
 
     pw_mm, ph_mm = paper_mm
 
@@ -130,37 +136,29 @@ def build_sheets(
     p_port = (mm_to_px(min(pw_mm, ph_mm), dpi), mm_to_px(max(pw_mm, ph_mm), dpi))
     p_land = (mm_to_px(max(pw_mm, ph_mm), dpi), mm_to_px(min(pw_mm, ph_mm), dpi))
 
-    # Test candidate configurations: (paper_w, paper_h, rotate_photo_90, effective_margin_px)
+    # Test candidate configurations: (per_sheet, cols, rows, paper_w, paper_h, rotate_photo_90)
     candidates = []
 
-    # Try requested margin first, then slightly tighter margins (down to 2.5mm) if it fits more photos
-    margins_to_try = [margin_px]
-    min_margin_px = mm_to_px(2.5, dpi)
-    if margin_px > min_margin_px:
-        margins_to_try.append(min_margin_px)
+    if orientation in ("auto", "portrait"):
+        # Upright photo on portrait paper
+        c, r = _calc_grid(p_port[0], p_port[1], photo_w_px, photo_h_px, gap_px, margin_px)
+        candidates.append((c * r, c, r, p_port[0], p_port[1], False))
+        # Rotated photo (90 deg) on portrait paper
+        c_r, r_r = _calc_grid(p_port[0], p_port[1], photo_h_px, photo_w_px, gap_px, margin_px)
+        candidates.append((c_r * r_r, c_r, r_r, p_port[0], p_port[1], True))
 
-    for m in margins_to_try:
-        if orientation in ("auto", "portrait"):
-            # Upright photo on portrait paper
-            c, r = _calc_grid(p_port[0], p_port[1], photo_w_px, photo_h_px, gap_px, m)
-            candidates.append((c * r, c, r, p_port[0], p_port[1], False, m))
-            # Rotated photo (90 deg) on portrait paper
-            c_r, r_r = _calc_grid(p_port[0], p_port[1], photo_h_px, photo_w_px, gap_px, m)
-            candidates.append((c_r * r_r, c_r, r_r, p_port[0], p_port[1], True, m))
+    if orientation in ("auto", "landscape"):
+        # Upright photo on landscape paper
+        c, r = _calc_grid(p_land[0], p_land[1], photo_w_px, photo_h_px, gap_px, margin_px)
+        candidates.append((c * r, c, r, p_land[0], p_land[1], False))
+        # Rotated photo (90 deg) on landscape paper
+        c_r, r_r = _calc_grid(p_land[0], p_land[1], photo_h_px, photo_w_px, gap_px, margin_px)
+        candidates.append((c_r * r_r, c_r, r_r, p_land[0], p_land[1], True))
 
-        if orientation in ("auto", "landscape"):
-            # Upright photo on landscape paper
-            c, r = _calc_grid(p_land[0], p_land[1], photo_w_px, photo_h_px, gap_px, m)
-            candidates.append((c * r, c, r, p_land[0], p_land[1], False, m))
-            # Rotated photo (90 deg) on landscape paper
-            c_r, r_r = _calc_grid(p_land[0], p_land[1], photo_h_px, photo_w_px, gap_px, m)
-            candidates.append((c_r * r_r, c_r, r_r, p_land[0], p_land[1], True, m))
-
-    # Pick candidate that maximizes photos per sheet (preferring unrotated photo and requested margin on tie)
-    # Sort key: (total_fit, -rotated, -is_tighter_margin)
-    candidates.sort(key=lambda x: (x[0], not x[5], x[6] == margin_px), reverse=True)
+    # Pick candidate that maximizes photos per sheet (preferring unrotated photo on tie)
+    candidates.sort(key=lambda x: (x[0], not x[5]), reverse=True)
     best = candidates[0]
-    per_sheet, cols, rows, paper_w_px, paper_h_px, rotate_photo, used_margin_px = best
+    per_sheet, cols, rows, paper_w_px, paper_h_px, rotate_photo = best
 
     # Prepare photo (rotate 90 deg if optimal)
     if rotate_photo:

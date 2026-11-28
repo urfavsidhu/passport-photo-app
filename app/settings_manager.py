@@ -44,6 +44,58 @@ def user_data_dir() -> Path:
     return folder
 
 
+def user_documents_dir() -> Path:
+    """Return user's Documents directory."""
+    import os
+    userprofile = Path(os.environ.get("USERPROFILE", Path.home()))
+    docs = userprofile / "Documents"
+    if not docs.exists():
+        docs = Path.home() / "Documents"
+    docs.mkdir(parents=True, exist_ok=True)
+    return docs
+
+
+def user_output_dir() -> Path:
+    """Return user output folder: Documents/PassportPhotoApp/Output."""
+    out = user_documents_dir() / "PassportPhotoApp" / "Output"
+    out.mkdir(parents=True, exist_ok=True)
+    return out
+
+
+def cleanup_old_saved_files(output_dir: Optional[Path] = None, keep_days: int = 0) -> int:
+    """Clean up files in output_dir older than keep_days.
+    
+    If keep_days <= 0, deletes files from previous runs/sessions.
+    Returns count of removed files.
+    """
+    import time
+    if output_dir is None:
+        output_dir = user_output_dir()
+    if not output_dir.exists():
+        return 0
+
+    removed = 0
+    now = time.time()
+    cutoff_seconds = keep_days * 86400
+
+    try:
+        for f in output_dir.iterdir():
+            if f.is_file() and f.name != ".gitkeep":
+                try:
+                    mtime = f.stat().st_mtime
+                    if keep_days <= 0 or (now - mtime) > cutoff_seconds:
+                        f.unlink()
+                        removed += 1
+                except Exception as exc:
+                    logger.debug("Could not remove old file %s: %s", f, exc)
+    except Exception as exc:
+        logger.warning("Error during output cleanup: %s", exc)
+
+    if removed > 0:
+        logger.info("Cleaned up %d old file(s) from %s", removed, output_dir)
+    return removed
+
+
 # ---------------------------------------------------------------------------
 # Photo / Paper / Background lookup tables
 # ---------------------------------------------------------------------------
@@ -120,6 +172,7 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "dpi": 300,
     "gap_mm": 2.0,
     "margin_mm": 5.0,
+    "min_printer_margin_mm": 3.0,
     "cut_lines": True,
     "background": "white",
     "custom_bg_color": "#FFFFFF",
@@ -130,13 +183,18 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "warmth": 0,
     "shadow_lift": 0,
     "head_ratio": 0.75,
-    "auto_enhance": True,
+    "auto_enhance": False,
     "paper_orientation": "auto",
     "output_format": "png",
     "jpg_quality": 95,
     "save_outputs": True,
+    "keep_saved_days": 0,
+    "calibration_scale_x": 1.0,
+    "calibration_scale_y": 1.0,
+    "calibration_offset_x_mm": 0.0,
+    "calibration_offset_y_mm": 0.0,
     "last_preset": "",
-    "app_version": "1.0.0",
+    "app_version": "1.1.0",
 }
 
 

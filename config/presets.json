@@ -1,68 +1,76 @@
 {
   "presets": [
     {
-      "name": "Indian Passport (35x45mm, 8 copies, White)",
+      "name": "Standard Passport Format (35x45mm, 8 copies on 4x6, White BG)",
       "photo_size": "35x45",
       "paper_size": "4x6",
       "copies": 8,
       "background": "white",
-      "dpi": 300
+      "dpi": 300,
+      "description": "Common 35x45 mm layout fitting 8 copies on standard 4x6 photo paper"
     },
     {
-      "name": "Indian Visa (51x51mm, 4 copies, White)",
+      "name": "Visa Square Format (51x51mm, 2 copies on 4x6, White BG)",
       "photo_size": "51x51",
       "paper_size": "4x6",
+      "copies": 2,
+      "background": "white",
+      "dpi": 300,
+      "description": "51x51 mm square format fitting 2 copies on a single 4x6 sheet"
+    },
+    {
+      "name": "Visa Square Format (51x51mm, 4 copies on 5x7, White BG)",
+      "photo_size": "51x51",
+      "paper_size": "5x7",
       "copies": 4,
       "background": "white",
-      "dpi": 300
+      "dpi": 300,
+      "description": "51x51 mm square format fitting 4 copies on 5x7 paper"
     },
     {
-      "name": "Aadhaar Card (35x45mm, 8 copies, White)",
-      "photo_size": "35x45",
-      "paper_size": "4x6",
-      "copies": 8,
-      "background": "white",
-      "dpi": 300
-    },
-    {
-      "name": "PAN Card (25x35mm, 12 copies, White)",
+      "name": "ID / Application Format (25x35mm, 12 copies on 4x6, White BG)",
       "photo_size": "25x35",
       "paper_size": "4x6",
       "copies": 12,
       "background": "white",
-      "dpi": 300
+      "dpi": 300,
+      "description": "25x35 mm layout fitting 12 copies on 4x6 photo paper"
     },
     {
-      "name": "US Visa (51x51mm, 4 copies, White)",
-      "photo_size": "51x51",
-      "paper_size": "4x6",
-      "copies": 4,
-      "background": "white",
-      "dpi": 300
-    },
-    {
-      "name": "Stamp Size (20x25mm, 20 copies, White)",
+      "name": "Stamp Size Format (20x25mm, 20 copies on 4x6, White BG)",
       "photo_size": "20x25",
       "paper_size": "4x6",
       "copies": 20,
       "background": "white",
-      "dpi": 300
+      "dpi": 300,
+      "description": "20x25 mm compact stamp format fitting 20 copies on 4x6 photo paper"
     },
     {
-      "name": "Indian Passport (Blue BG)",
+      "name": "Standard Passport Format (35x45mm, 8 copies on 4x6, Light Blue BG)",
       "photo_size": "35x45",
       "paper_size": "4x6",
       "copies": 8,
       "background": "light_blue",
-      "dpi": 300
+      "dpi": 300,
+      "description": "35x45 mm layout on light blue background"
     },
     {
-      "name": "Indian Passport (Red BG)",
+      "name": "Standard Passport Format (35x45mm, 8 copies on 4x6, Red BG)",
       "photo_size": "35x45",
       "paper_size": "4x6",
       "copies": 8,
       "background": "red",
-      "dpi": 300
+      "dpi": 300,
+      "description": "35x45 mm layout on solid red background"
+    },
+    {
+      "name": "Bulk Passport Sheet (35x45mm, 30 copies on A4, White BG)",
+      "photo_size": "35x45",
+      "paper_size": "A4",
+      "copies": 30,
+      "background": "white",
+      "dpi": 300,
+      "description": "35x45 mm photos arranged on standard A4 paper"
     }
   ]
 }

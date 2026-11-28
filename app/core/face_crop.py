@@ -52,24 +52,45 @@ class FaceBox:
 # Face detection
 # ---------------------------------------------------------------------------
 
-def _detect_mediapipe_tasks(rgb_array: np.ndarray) -> List[FaceBox]:
-    """Detect faces using modern MediaPipe Tasks FaceDetector."""
-    faces = []
+_cached_tasks_detector = None
+
+
+def _get_mediapipe_tasks_detector():
+    """Get or create singleton MediaPipe Tasks FaceDetector."""
+    global _cached_tasks_detector
+    if _cached_tasks_detector is not None:
+        return _cached_tasks_detector
+
     try:
         from app.settings_manager import resource_path
         model_path = resource_path("models/blaze_face_short_range.tflite")
         if not model_path.exists():
-            return faces
+            return None
 
         from mediapipe.tasks import python
         from mediapipe.tasks.python import vision
-        import mediapipe as mp
 
         options = vision.FaceDetectorOptions(
             base_options=python.BaseOptions(model_asset_path=str(model_path)),
             min_detection_confidence=0.5,
         )
-        detector = vision.FaceDetector.create_from_options(options)
+        _cached_tasks_detector = vision.FaceDetector.create_from_options(options)
+        logger.info("Created cached MediaPipe Tasks FaceDetector")
+        return _cached_tasks_detector
+    except Exception as exc:
+        logger.debug("Could not initialize MediaPipe Tasks FaceDetector: %s", exc)
+        return None
+
+
+def _detect_mediapipe_tasks(rgb_array: np.ndarray) -> List[FaceBox]:
+    """Detect faces using modern MediaPipe Tasks FaceDetector (reused instance)."""
+    faces = []
+    try:
+        detector = _get_mediapipe_tasks_detector()
+        if detector is None:
+            return faces
+
+        import mediapipe as mp
         h, w = rgb_array.shape[:2]
         mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_array)
         res = detector.detect(mp_img)
@@ -299,30 +320,84 @@ def _find_chin(face: FaceBox) -> int:
 # Rotation correction
 # ---------------------------------------------------------------------------
 
-def _auto_rotate(image: Image.Image, face: FaceBox) -> Tuple[Image.Image, FaceBox]:
-    """Auto-rotate image to level the eyes (if eye landmarks available)."""
+def _rotate_point(pt: Tuple[int, int], cx: float, cy: float, angle_deg: float) -> Tuple[int, int]:
+    """Rotate point (x, y) counter-clockwise by angle_deg around (cx, cy) in image coordinates."""
+    rad = math.radians(angle_deg)
+    cos_a = math.cos(rad)
+    sin_a = math.sin(rad)
+    dx = pt[0] - cx
+    dy = pt[1] - cy
+    # In image coords (y downward), counter-clockwise rotation:
+    nx = cx + dx * cos_a + dy * sin_a
+    ny = cy - dx * sin_a + dy * cos_a
+    return (int(round(nx)), int(round(ny)))
+
+
+def _auto_rotate(
+    image: Image.Image,
+    face: FaceBox,
+    alpha_mask: Optional[Image.Image] = None,
+) -> Tuple[Image.Image, FaceBox, Optional[Image.Image]]:
+    """Auto-rotate image to level the eyes (if eye landmarks available).
+    
+    Levels the eye-line tilt by rotating counter-clockwise by +angle.
+    Also rotates alpha_mask and recalculates FaceBox landmarks and bounds.
+    """
     if face.left_eye is None or face.right_eye is None:
-        return image, face
+        return image, face, alpha_mask
 
     dx = face.right_eye[0] - face.left_eye[0]
     dy = face.right_eye[1] - face.left_eye[1]
     angle = math.degrees(math.atan2(dy, dx))
 
-    # Only correct if the tilt is noticeable but not extreme
+    # Only correct if the tilt is noticeable (>= 1.0 deg) and not extreme (<= 30.0 deg)
     if abs(angle) < 1.0 or abs(angle) > 30.0:
-        return image, face
+        return image, face, alpha_mask
 
-    logger.info("Auto-rotating by %.1f degrees to level eyes", -angle)
+    logger.info("Auto-rotating by +%.1f degrees to level eyes (tilt was %.1f deg)", angle, angle)
 
-    # Rotate the image around the center of the face
-    cx = face.x + face.width // 2
-    cy = face.y + face.height // 2
+    # Rotate the image and alpha mask around the center of the face
+    cx = face.x + face.width / 2.0
+    cy = face.y + face.height / 2.0
 
-    rotated = image.rotate(-angle, center=(cx, cy), resample=Image.BICUBIC, expand=False)
+    # In PIL, rotate(+angle) rotates counter-clockwise
+    rotated_image = image.rotate(angle, center=(cx, cy), resample=Image.BICUBIC, expand=False)
+    rotated_alpha = None
+    if alpha_mask is not None:
+        rotated_alpha = alpha_mask.rotate(angle, center=(cx, cy), resample=Image.BICUBIC, expand=False)
 
-    # Approximate the face box in the rotated image (small angle, so close enough)
-    # For better accuracy we'd re-detect, but this is good enough for small tilts
-    return rotated, face
+    # Rotate landmarks
+    new_left_eye = _rotate_point(face.left_eye, cx, cy, angle)
+    new_right_eye = _rotate_point(face.right_eye, cx, cy, angle)
+    new_nose = _rotate_point(face.nose, cx, cy, angle) if face.nose else None
+    new_mouth = _rotate_point(face.mouth, cx, cy, angle) if face.mouth else None
+
+    # Rotate face bounding box corners to find new axis-aligned bounding box
+    corners = [
+        (face.x, face.y),
+        (face.x + face.width, face.y),
+        (face.x, face.y + face.height),
+        (face.x + face.width, face.y + face.height),
+    ]
+    rot_corners = [_rotate_point(c, cx, cy, angle) for c in corners]
+    min_x = max(0, min(c[0] for c in rot_corners))
+    min_y = max(0, min(c[1] for c in rot_corners))
+    max_x = min(image.width, max(c[0] for c in rot_corners))
+    max_y = min(image.height, max(c[1] for c in rot_corners))
+
+    new_face = FaceBox(
+        x=min_x,
+        y=min_y,
+        width=max(1, max_x - min_x),
+        height=max(1, max_y - min_y),
+        confidence=face.confidence,
+        left_eye=new_left_eye,
+        right_eye=new_right_eye,
+        nose=new_nose,
+        mouth=new_mouth,
+    )
+
+    return rotated_image, new_face, rotated_alpha
 
 
 # ---------------------------------------------------------------------------
@@ -358,7 +433,7 @@ def crop_passport(
         Cropped and resized image at exact pixel dimensions.
     """
     # Auto-rotate if tilted
-    image, face = _auto_rotate(image, face)
+    image, face, alpha_mask = _auto_rotate(image, face, alpha_mask)
 
     # Output pixel dimensions
     out_w = round(photo_w_mm / 25.4 * dpi)

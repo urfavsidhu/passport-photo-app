@@ -2,16 +2,17 @@
 
 Shows a PIL/QImage with zoom-to-fit, before/after toggle,
 and sheet grid preview. Handles high-DPI scaling efficiently.
+Keeps photos completely untinted and true-to-color.
 """
 
 import logging
 from typing import Optional
 
-from PySide6.QtCore import Qt, QSize, Signal, QRectF
-from PySide6.QtGui import QImage, QPixmap, QPainter, QColor
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QSizePolicy, QFrame,
+    QPushButton, QSizePolicy,
 )
 
 from PIL import Image
@@ -31,13 +32,11 @@ def pil_to_qimage(pil_img: Image.Image) -> QImage:
         converted = pil_img.convert("RGB")
         data = converted.tobytes("raw", "RGB")
         qimg = QImage(data, converted.width, converted.height, QImage.Format.Format_RGB888)
-    # Must copy because the data buffer is temporary
     return qimg.copy()
 
 
 def pil_to_qpixmap(pil_img: Image.Image, max_size: int = 2000) -> QPixmap:
     """Convert PIL Image to QPixmap, downscaling if needed for display."""
-    # Downscale very large images for display
     w, h = pil_img.size
     if max(w, h) > max_size:
         ratio = max_size / max(w, h)
@@ -74,7 +73,6 @@ class PreviewPanel(QWidget):
         self._image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._image_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._image_label.setMinimumSize(250, 250)
-        self._image_label.setStyleSheet("background-color: #F1F5F9; border-radius: 8px; border: 2px dashed #CBD5E1;")
         self._image_label.setObjectName("previewPlaceholder")
         self._image_label.setText("Drop a photo here or click Upload")
         layout.addWidget(self._image_label, stretch=1)
@@ -146,7 +144,7 @@ class PreviewPanel(QWidget):
         self._image_label.setText("Drop a photo here or click Upload")
 
     def _show_pixmap(self, pixmap: QPixmap) -> None:
-        """Display a pixmap scaled to fit the label."""
+        """Display a pixmap scaled to fit the label without any color tinting."""
         if pixmap is None or pixmap.isNull():
             return
         self._image_label.setText("")
@@ -162,7 +160,7 @@ class PreviewPanel(QWidget):
         """Toggle between before and after images."""
         self._showing_sheet = False
         self._sheet_btn.setChecked(False)
-        
+
         if checked and self._before_pixmap:
             self._showing_before = True
             self._show_pixmap(self._before_pixmap)

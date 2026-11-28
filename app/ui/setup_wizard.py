@@ -1,7 +1,8 @@
 """First-run setup wizard and settings editor.
 
 Multi-page wizard for configuring shop name, camera, printer,
-photo/paper size, background color, and lighting defaults.
+photo/paper size, margins, background color, lighting defaults,
+printer calibration, and customer file retention.
 Reusable from the Settings menu.
 """
 
@@ -9,12 +10,12 @@ import logging
 from typing import Optional
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QFont
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QWizard, QWizardPage, QVBoxLayout, QHBoxLayout, QFormLayout,
     QLabel, QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox,
     QPushButton, QCheckBox, QSlider, QFrame, QMessageBox,
-    QColorDialog, QGroupBox, QWidget, QSizePolicy,
+    QColorDialog, QGroupBox, QWidget,
 )
 
 from app.settings_manager import (
@@ -38,7 +39,7 @@ class SetupWizard(QWizard):
         self._settings = settings
 
         self.setWindowTitle("Passport Photo App — Setup & Settings")
-        self.setMinimumSize(700, 560)
+        self.setMinimumSize(720, 600)
         self.setWizardStyle(QWizard.WizardStyle.ModernStyle)
 
         # Add pages
@@ -55,11 +56,18 @@ class SetupWizard(QWizard):
         self.addPage(self._lighting_page)
 
         self.setButtonText(QWizard.WizardButton.FinishButton, "Save Settings")
+        finish_btn = self.button(QWizard.WizardButton.FinishButton)
+        if finish_btn:
+            finish_btn.setProperty("role", "success")
+
+        cancel_btn = self.button(QWizard.WizardButton.CancelButton)
+        if cancel_btn:
+            cancel_btn.setProperty("role", "danger")
 
         self.finished.connect(self._on_finish)
 
     def _on_finish(self, result: int) -> None:
-        """Save all settings when wizard finishes."""
+        """Save settings when wizard finishes or record first run on close."""
         if result == QWizard.DialogCode.Accepted:
             all_updates = {}
             all_updates.update(self._shop_page.get_values())
@@ -71,6 +79,10 @@ class SetupWizard(QWizard):
             self._settings.update(all_updates)
             logger.info("Setup wizard completed, settings saved")
             self.settings_saved.emit()
+        else:
+            # P1-10: wizard cancelled still sets first_run_done so it doesn't loop
+            self._settings.set("first_run_done", True)
+            logger.info("Setup wizard closed/cancelled, first_run_done set to True")
 
 
 # ---------------------------------------------------------------------------
@@ -84,7 +96,7 @@ class ShopNamePage(QWizardPage):
         super().__init__()
         self._settings = settings
         self.setTitle("Welcome to Passport Photo App!")
-        self.setSubTitle("Let's configure your shop details. This only takes a minute.")
+        self.setSubTitle("Configure your shop details. This takes less than a minute.")
 
         layout = QVBoxLayout(self)
         layout.setSpacing(16)
@@ -94,7 +106,6 @@ class ShopNamePage(QWizardPage):
             "optimizes lighting, and arranges multiple copies on photo paper for instant 1-click printing."
         )
         welcome.setWordWrap(True)
-        welcome.setStyleSheet("font-size: 15px; color: #334155; line-height: 1.4;")
         layout.addWidget(welcome)
 
         form = QFormLayout()
@@ -114,7 +125,7 @@ class ShopNamePage(QWizardPage):
 
 
 # ---------------------------------------------------------------------------
-# Page 2: Camera & Printer
+# Page 2: Camera & Printer Selection
 # ---------------------------------------------------------------------------
 
 class DeviceSelectionPage(QWizardPage):
@@ -160,13 +171,57 @@ class DeviceSelectionPage(QWizardPage):
         prn_layout.addWidget(self._refresh_prn_btn)
 
         layout.addWidget(prn_group)
+
+        # Printer calibration group
+        cal_group = QGroupBox("Printer Calibration (Optional - For Scale / Margin Correction)")
+        cal_form = QFormLayout(cal_group)
+        cal_form.setSpacing(8)
+
+        scale_box = QHBoxLayout()
+        self._cal_scale_x = QDoubleSpinBox()
+        self._cal_scale_x.setRange(0.80, 1.20)
+        self._cal_scale_x.setSingleStep(0.005)
+        self._cal_scale_x.setDecimals(4)
+        self._cal_scale_x.setValue(settings.get("calibration_scale_x", 1.0))
+
+        self._cal_scale_y = QDoubleSpinBox()
+        self._cal_scale_y.setRange(0.80, 1.20)
+        self._cal_scale_y.setSingleStep(0.005)
+        self._cal_scale_y.setDecimals(4)
+        self._cal_scale_y.setValue(settings.get("calibration_scale_y", 1.0))
+
+        scale_box.addWidget(QLabel("Scale X:"))
+        scale_box.addWidget(self._cal_scale_x)
+        scale_box.addWidget(QLabel("Scale Y:"))
+        scale_box.addWidget(self._cal_scale_y)
+        cal_form.addRow("Scale Multipliers:", scale_box)
+
+        offset_box = QHBoxLayout()
+        self._cal_offset_x = QDoubleSpinBox()
+        self._cal_offset_x.setRange(-20.0, 20.0)
+        self._cal_offset_x.setSingleStep(0.5)
+        self._cal_offset_x.setSuffix(" mm")
+        self._cal_offset_x.setValue(settings.get("calibration_offset_x_mm", 0.0))
+
+        self._cal_offset_y = QDoubleSpinBox()
+        self._cal_offset_y.setRange(-20.0, 20.0)
+        self._cal_offset_y.setSingleStep(0.5)
+        self._cal_offset_y.setSuffix(" mm")
+        self._cal_offset_y.setValue(settings.get("calibration_offset_y_mm", 0.0))
+
+        offset_box.addWidget(QLabel("Offset X:"))
+        offset_box.addWidget(self._cal_offset_x)
+        offset_box.addWidget(QLabel("Offset Y:"))
+        offset_box.addWidget(self._cal_offset_y)
+        cal_form.addRow("Physical Offsets:", offset_box)
+
+        layout.addWidget(cal_group)
         layout.addStretch()
 
         self._refresh_cameras()
         self._refresh_printers()
 
     def _refresh_cameras(self) -> None:
-        """Refresh the camera list."""
         self._camera_combo.clear()
         self._camera_combo.addItem("No camera (file upload only)", -1)
         try:
@@ -183,7 +238,6 @@ class DeviceSelectionPage(QWizardPage):
             logger.warning("Could not list cameras: %s", exc)
 
     def _test_camera(self) -> None:
-        """Test the selected camera."""
         idx = self._camera_combo.currentData()
         if idx is None or idx == -1:
             QMessageBox.information(self, "Camera", "No camera selected.")
@@ -195,14 +249,17 @@ class DeviceSelectionPage(QWizardPage):
             frame = cam.grab_frame()
             cam.close()
             if frame:
-                QMessageBox.information(self, "Camera Test", f"Camera {idx} connected successfully!\nResolution: {frame.size[0]}x{frame.size[1]} px")
+                QMessageBox.information(
+                    self,
+                    "Camera Test",
+                    f"Camera {idx} connected successfully!\nResolution: {frame.size[0]}x{frame.size[1]} px"
+                )
             else:
                 QMessageBox.warning(self, "Camera Test", "Camera connected but could not capture a frame.")
         except Exception as exc:
             QMessageBox.warning(self, "Camera Test", f"Camera test failed:\n{exc}")
 
     def _refresh_printers(self) -> None:
-        """Refresh the printer list."""
         self._printer_combo.clear()
         self._printer_combo.addItem("No printer (Save PDF / PNG only)", "")
         try:
@@ -227,6 +284,10 @@ class DeviceSelectionPage(QWizardPage):
         return {
             "camera_index": cam_idx if cam_idx is not None else -1,
             "printer_name": prn_name if prn_name else "",
+            "calibration_scale_x": self._cal_scale_x.value(),
+            "calibration_scale_y": self._cal_scale_y.value(),
+            "calibration_offset_x_mm": self._cal_offset_x.value(),
+            "calibration_offset_y_mm": self._cal_offset_y.value(),
         }
 
     def save(self) -> None:
@@ -238,13 +299,13 @@ class DeviceSelectionPage(QWizardPage):
 # ---------------------------------------------------------------------------
 
 class SizeSettingsPage(QWizardPage):
-    """Page 3: Photo size, paper size, copies, DPI, gap, margin, cut lines."""
+    """Page 3: Photo size, paper size, copies, DPI, gap, margins, cut lines."""
 
     def __init__(self, settings: SettingsManager) -> None:
         super().__init__()
         self._settings = settings
         self.setTitle("Passport Size & Print Sheet Layout")
-        self.setSubTitle("Configure default paper size, photo dimensions, and cut lines.")
+        self.setSubTitle("Configure default paper size, photo dimensions, margins, and cut lines.")
 
         layout = QVBoxLayout(self)
         form = QFormLayout()
@@ -294,13 +355,22 @@ class SizeSettingsPage(QWizardPage):
         self._gap.setValue(settings.get("gap_mm", 2.0))
         form.addRow("Gap Between Photos:", self._gap)
 
-        # Margin
+        # Outer Margin
         self._margin = QDoubleSpinBox()
         self._margin.setRange(0, 30)
         self._margin.setSingleStep(1.0)
         self._margin.setSuffix(" mm")
         self._margin.setValue(settings.get("margin_mm", 5.0))
         form.addRow("Outer Page Margin:", self._margin)
+
+        # Minimum Printer Margin (Hardware Limit)
+        self._min_margin = QDoubleSpinBox()
+        self._min_margin.setRange(1.0, 15.0)
+        self._min_margin.setSingleStep(0.5)
+        self._min_margin.setSuffix(" mm")
+        self._min_margin.setValue(settings.get("min_printer_margin_mm", 3.0))
+        self._min_margin.setToolTip("Physical hardware unprintable margin. Layout will never place photos closer than this.")
+        form.addRow("Hardware Minimum Margin:", self._min_margin)
 
         # Cut lines
         self._cut_lines = QCheckBox("Print light grey corner crop/cut marks")
@@ -355,6 +425,7 @@ class SizeSettingsPage(QWizardPage):
             "paper_orientation": self._orientation.currentData(),
             "gap_mm": self._gap.value(),
             "margin_mm": self._margin.value(),
+            "min_printer_margin_mm": self._min_margin.value(),
             "cut_lines": self._cut_lines.isChecked(),
         }
 
@@ -400,7 +471,7 @@ class BackgroundColorPage(QWizardPage):
 
         self._color_preview = QFrame()
         self._color_preview.setObjectName("colorPreview")
-        self._color_preview.setFixedSize(80, 80)
+        self._color_preview.setFixedSize(60, 40)
         self._update_preview()
         custom_layout.addWidget(self._color_preview)
         custom_layout.addStretch()
@@ -409,11 +480,10 @@ class BackgroundColorPage(QWizardPage):
 
         info = QLabel(
             "• Standard Indian Passport / Visa: White\n"
-            "• Some Government / Visa Forms: Light Blue (#D6EAF8)\n"
-            "• Special formats: Red or Custom"
+            "• Many Government / Exam Forms: Light Blue (#D6EAF8)\n"
+            "• Special formats: Light Grey or Custom"
         )
         info.setWordWrap(True)
-        info.setStyleSheet("color: #475569; font-size: 13px; padding: 8px 0;")
         layout.addWidget(info)
 
         layout.addStretch()
@@ -444,7 +514,7 @@ class BackgroundColorPage(QWizardPage):
             from app.settings_manager import background_hex
             hex_color = background_hex(key) if key else "#FFFFFF"
         self._color_preview.setStyleSheet(
-            f"background-color: {hex_color}; border: 2px solid #CBD5E1; border-radius: 8px;"
+            f"background-color: {hex_color}; border: 2px solid #CDB59A; border-radius: 6px;"
         )
 
     def get_values(self) -> dict:
@@ -458,23 +528,23 @@ class BackgroundColorPage(QWizardPage):
 
 
 # ---------------------------------------------------------------------------
-# Page 5: Lighting Defaults
+# Page 5: Lighting Defaults & Customer Privacy
 # ---------------------------------------------------------------------------
 
 class LightingDefaultsPage(QWizardPage):
-    """Page 5: Default brightness, contrast, warmth, shadow lift settings."""
+    """Page 5: Lighting defaults, head height ratio, and customer privacy retention."""
 
     def __init__(self, settings: SettingsManager) -> None:
         super().__init__()
         self._settings = settings
-        self.setTitle("Lighting & Face Settings")
-        self.setSubTitle("Set default photo lighting enhancements and head height ratio.")
+        self.setTitle("Lighting, Proportions & Customer Privacy")
+        self.setSubTitle("Set default lighting enhancements, head height ratio, and file retention.")
 
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
 
-        self._auto_enhance = QCheckBox("Enable Auto-Enhance by default (Gentle CLAHE & White Balance)")
-        self._auto_enhance.setChecked(settings.get("auto_enhance", True))
+        self._auto_enhance = QCheckBox("Enable Auto-Enhance by default (Gentle CLAHE & Exposure)")
+        self._auto_enhance.setChecked(settings.get("auto_enhance", False))
         layout.addWidget(self._auto_enhance)
 
         form = QFormLayout()
@@ -506,8 +576,10 @@ class LightingDefaultsPage(QWizardPage):
         head_layout.addStretch()
         layout.addLayout(head_layout)
 
-        out_group = QGroupBox("Save Options")
-        out_layout = QFormLayout(out_group)
+        # Privacy and Storage Options
+        privacy_group = QGroupBox("Customer Privacy & File Retention")
+        privacy_layout = QFormLayout(privacy_group)
+        privacy_layout.setSpacing(10)
 
         self._output_format = QComboBox()
         self._output_format.addItem("PNG (Lossless - Recommended)", "png")
@@ -516,13 +588,19 @@ class LightingDefaultsPage(QWizardPage):
         for i in range(self._output_format.count()):
             if self._output_format.itemData(i) == saved_fmt:
                 self._output_format.setCurrentIndex(i)
-        out_layout.addRow("Default Format:", self._output_format)
+        privacy_layout.addRow("Save Format:", self._output_format)
 
-        self._save_outputs = QCheckBox("Automatically save copies to data/output/")
-        self._save_outputs.setChecked(settings.get("save_outputs", True))
-        out_layout.addRow("", self._save_outputs)
+        self._keep_days = QSpinBox()
+        self._keep_days.setRange(0, 365)
+        self._keep_days.setValue(settings.get("keep_saved_days", 0))
+        self._keep_days.setToolTip("0 = Don't retain customer prints (cleaned up immediately for customer privacy).")
+        privacy_layout.addRow("Keep Saved Files For (Days):", self._keep_days)
 
-        layout.addWidget(out_group)
+        self._save_outputs = QCheckBox("Save copy to Documents/PassportPhotoApp/Output on Print/Save")
+        self._save_outputs.setChecked(settings.get("save_outputs", False))
+        privacy_layout.addRow("", self._save_outputs)
+
+        layout.addWidget(privacy_group)
         layout.addStretch()
 
     def _make_slider(self, name: str, value: int) -> dict:
@@ -557,6 +635,7 @@ class LightingDefaultsPage(QWizardPage):
             "head_ratio": self._head_ratio.value(),
             "output_format": self._output_format.currentData(),
             "save_outputs": self._save_outputs.isChecked(),
+            "keep_saved_days": self._keep_days.value(),
         }
 
     def save(self) -> None:

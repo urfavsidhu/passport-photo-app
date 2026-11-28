@@ -1,8 +1,8 @@
 @echo off
-setlocal enabledelayedexpansion
+setlocal
 
 echo =========================================================
-echo    Passport Photo App — Automated Build & Package
+echo    Passport Photo App — Automated Build and Package
 echo =========================================================
 
 cd /d "%~dp0\.."
@@ -19,13 +19,13 @@ if exist "venv\Scripts\python.exe" (
 echo [1/3] Verifying offline models...
 if not exist "models\isnet-general-use.onnx" (
     if not exist "models\u2net.onnx" (
-        echo [WARNING] No ONNX model found in models\ folder.
+        echo [WARNING] No ONNX model found in models folder.
         echo Downloading models now...
         "%PYTHON_EXE%" tools\download_models.py
     )
 )
 if not exist "models\blaze_face_short_range.tflite" (
-    echo [WARNING] MediaPipe face detector not found in models\ folder.
+    echo [WARNING] MediaPipe face detector not found in models folder.
     echo Downloading models now...
     "%PYTHON_EXE%" tools\download_models.py
 )
@@ -39,17 +39,14 @@ if errorlevel 1 (
 echo [OK] PyInstaller build complete. Output in dist\PassportPhotoApp\
 
 echo [3/3] Compiling Inno Setup Windows Installer...
-set "ISCC_PATH=C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-if not exist "!ISCC_PATH!" (
-    set "ISCC_PATH=C:\Program Files\Inno Setup 6\ISCC.exe"
-)
-if not exist "!ISCC_PATH!" (
-    set "ISCC_PATH=%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"
-)
+set "ISCC_PATH="
+if exist "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" set "ISCC_PATH=C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+if not defined ISCC_PATH if exist "C:\Program Files\Inno Setup 6\ISCC.exe" set "ISCC_PATH=C:\Program Files\Inno Setup 6\ISCC.exe"
+if not defined ISCC_PATH if exist "%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" set "ISCC_PATH=%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"
 
-if exist "!ISCC_PATH!" (
-    echo Compiling installer with Inno Setup...
-    "!ISCC_PATH!" "build\installer.iss"
+if defined ISCC_PATH (
+    echo Compiling installer with Inno Setup: "%ISCC_PATH%"
+    "%ISCC_PATH%" "build\installer.iss"
     if errorlevel 1 (
         echo [ERROR] Inno Setup compilation failed!
         exit /b 1

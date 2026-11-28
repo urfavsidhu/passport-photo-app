@@ -23,8 +23,18 @@ class PipelineResult:
     final_photo: Optional[Image.Image] = None     # Single passport photo (RGB)
     sheets: List[Image.Image] = field(default_factory=list)  # Print sheets
     warnings: List[str] = field(default_factory=list)
+    blocking_issues: List[str] = field(default_factory=list)
+    settings_snapshot: Dict[str, Any] = field(default_factory=dict)
     timings: Dict[str, float] = field(default_factory=dict)
     num_sheets: int = 0
+    copies: int = 0
+    photo_size_mm: Tuple[float, float] = (35.0, 45.0)
+    face_box: Optional[Any] = None
+
+    @property
+    def has_blocking_issues(self) -> bool:
+        """True if there are safety or quality defects that prevent printing."""
+        return len(self.blocking_issues) > 0
 
 
 class PassportPipeline:
@@ -41,8 +51,11 @@ class PassportPipeline:
         self._rgba_cutout: Optional[Image.Image] = None   # After background removal (RGBA)
         self._face_box: Optional[Any] = None               # Detected face
         self._alpha_mask: Optional[Image.Image] = None     # Alpha channel
-        self._enhanced: Optional[Image.Image] = None       # After enhancement (RGBA)
-        self._cropped: Optional[Image.Image] = None        # After face crop (RGBA or RGB)
+        self._cropped: Optional[Image.Image] = None        # After face crop (RGBA)
+        self._enhanced_cropped: Optional[Image.Image] = None # After enhancement on cropped (RGBA)
+        self._blocking_issues: List[str] = []
+        self._face_warnings: List[str] = []
+        self._manual_crop_box: Optional[Tuple[int, int, int, int]] = None
 
     def run(
         self,
@@ -58,10 +71,13 @@ class PassportPipeline:
             progress_callback: Optional callback(step_name, percent).
 
         Returns:
-            PipelineResult with final photo, sheets, warnings, and timings.
+            PipelineResult with final photo, sheets, warnings, blocking_issues, and timings.
         """
         result = PipelineResult()
         timings = {}
+        self._blocking_issues = []
+        self._face_warnings = []
+        self._manual_crop_box = None
 
         def report(step: str, pct: int) -> None:
             if progress_callback:
@@ -77,33 +93,63 @@ class PassportPipeline:
         logger.info("Image loaded: %s, size=%s", self._original.mode, self._original.size)
 
         # --- Step 2: Remove background ---
-        report("Removing background...", 10)
+        report("Removing background...", 15)
         t0 = time.time()
         from app.core.background import remove_background
-        self._rgba_cutout = remove_background(self._original)
-        self._alpha_mask = self._rgba_cutout.split()[3]
+        try:
+            self._rgba_cutout = remove_background(self._original)
+            self._alpha_mask = self._rgba_cutout.split()[3]
+            
+            # Check alpha coverage
+            import numpy as np
+            alpha_arr = np.array(self._alpha_mask)
+            opaque_count = int(np.sum(alpha_arr > 30))
+            total_count = alpha_arr.size
+            coverage = opaque_count / total_count if total_count > 0 else 0.0
+
+            if coverage < 0.05:
+                issue = "Background cutout failed: subject alpha coverage is under 5% (subject not clearly separated from background)."
+                self._blocking_issues.append(issue)
+                logger.warning(issue)
+            elif coverage > 0.98:
+                issue = "Background removal failed: entire background retained (alpha coverage > 98%)."
+                self._blocking_issues.append(issue)
+                logger.warning(issue)
+
+        except Exception as exc:
+            issue = f"AI Background removal failed: {exc}"
+            self._blocking_issues.append(issue)
+            logger.error(issue)
+            self._rgba_cutout = self._original.convert("RGBA")
+            self._alpha_mask = self._rgba_cutout.split()[3]
+
         timings["background_removal"] = time.time() - t0
         logger.info("Background removed in %.1fs", timings["background_removal"])
 
-        # --- Step 3: Enhance ---
-        report("Enhancing photo...", 50)
-        t0 = time.time()
-        self._enhanced = self._apply_enhancements(self._rgba_cutout, settings)
-        timings["enhance"] = time.time() - t0
-
-        # --- Step 4: Detect face and crop ---
-        report("Detecting face...", 60)
+        # --- Step 3: Detect face and crop ---
+        report("Detecting face and framing...", 50)
         t0 = time.time()
         from app.core.face_crop import detect_face, crop_passport, NoFaceFoundError
         from app.settings_manager import photo_size_mm
 
         try:
-            self._face_box, face_warnings = detect_face(self._enhanced)
-            result.warnings.extend(face_warnings)
+            self._face_box, face_warnings = detect_face(self._rgba_cutout)
+            self._face_warnings = list(face_warnings)
+
+            # Check face size
+            iw, ih = self._original.size
+            face_area = self._face_box.width * self._face_box.height
+            img_area = iw * ih
+            if face_area < 0.03 * img_area or self._face_box.height < 0.12 * ih:
+                issue = f"Detected face is too small ({self._face_box.width}x{self._face_box.height} px, < 3% of photo area). Please take a closer photo."
+                self._blocking_issues.append(issue)
+                logger.warning(issue)
+
         except NoFaceFoundError as exc:
-            result.warnings.append(str(exc))
-            # If no face found, still try to center-crop
-            logger.warning("No face found, using center crop")
+            issue = "No human face detected in the photo. Please use a clear, well-lit photo."
+            self._blocking_issues.append(issue)
+            self._face_warnings = []
+            logger.warning("No face found, using center crop fallback")
             self._face_box = None
 
         pw_mm, ph_mm = photo_size_mm(settings.get("photo_size", "35x45"))
@@ -111,30 +157,28 @@ class PassportPipeline:
         head_ratio = settings.get("head_ratio", 0.75)
         bg_hex = self._get_bg_hex(settings)
 
-        if self._face_box is not None:
-            self._cropped = crop_passport(
-                self._enhanced, self._face_box, self._alpha_mask,
-                pw_mm, ph_mm, dpi, head_ratio, bg_hex,
-            )
-        else:
-            # Fallback: center crop to target aspect ratio
-            self._cropped = self._center_crop(self._enhanced, pw_mm, ph_mm, dpi)
-
+        self._cropped = self._execute_crop(pw_mm, ph_mm, dpi, head_ratio, bg_hex)
         timings["face_crop"] = time.time() - t0
 
+        # --- Step 4: Enhance (run on the cropped small image for speed and precision) ---
+        report("Enhancing photo...", 70)
+        t0 = time.time()
+        self._enhanced_cropped = self._apply_enhancements(self._cropped, settings)
+        timings["enhance"] = time.time() - t0
+
         # --- Step 5: Composite on background ---
-        report("Applying background...", 75)
+        report("Applying background...", 80)
         t0 = time.time()
         from app.core.background import apply_background
-        if self._cropped.mode == "RGBA":
-            final_photo = apply_background(self._cropped, bg_hex)
+        if self._enhanced_cropped.mode == "RGBA":
+            final_photo = apply_background(self._enhanced_cropped, bg_hex)
         else:
-            final_photo = self._cropped
+            final_photo = self._enhanced_cropped
         result.final_photo = final_photo
         timings["composite"] = time.time() - t0
 
         # --- Step 6: Build print sheets ---
-        report("Building print layout...", 85)
+        report("Building print layout...", 90)
         t0 = time.time()
         from app.core.layout import build_sheets
         from app.settings_manager import paper_size_mm
@@ -147,12 +191,16 @@ class PassportPipeline:
             copies=settings.get("copies", 8),
             gap_mm=settings.get("gap_mm", 2.0),
             margin_mm=settings.get("margin_mm", 5.0),
+            min_printer_margin_mm=settings.get("min_printer_margin_mm", 3.0),
             cut_lines=settings.get("cut_lines", True),
             orientation=settings.get("paper_orientation", "auto"),
         )
         result.num_sheets = len(result.sheets)
         timings["layout"] = time.time() - t0
 
+        result.blocking_issues = list(self._blocking_issues)
+        result.warnings = list(self._face_warnings)
+        result.settings_snapshot = dict(settings)
         result.timings = timings
         report("Done!", 100)
 
@@ -166,30 +214,18 @@ class PassportPipeline:
     # Cheap re-apply functions (use cached RGBA cutout)
     # -------------------------------------------------------------------
 
-    def reapply_enhancements(
-        self, settings: Dict[str, Any]
-    ) -> Optional[Image.Image]:
-        """Re-apply enhancement settings without re-running background removal.
-
-        Returns the enhanced RGBA cutout, or None if no cached data.
-        """
-        if self._rgba_cutout is None:
-            return None
-        self._enhanced = self._apply_enhancements(self._rgba_cutout, settings)
-        return self._enhanced
-
     def reapply_crop_and_layout(
         self, settings: Dict[str, Any]
     ) -> Optional[PipelineResult]:
         """Re-crop and rebuild layout without re-running AI steps.
 
-        Returns a PipelineResult with updated final_photo and sheets.
+        Returns a PipelineResult with updated final_photo and sheets,
+        while maintaining persistent blocking_issues and warnings.
         """
-        if self._enhanced is None:
+        if self._rgba_cutout is None:
             return None
 
         result = PipelineResult()
-        from app.core.face_crop import crop_passport, NoFaceFoundError
         from app.core.background import apply_background
         from app.core.layout import build_sheets
         from app.settings_manager import photo_size_mm, paper_size_mm
@@ -199,18 +235,13 @@ class PassportPipeline:
         head_ratio = settings.get("head_ratio", 0.75)
         bg_hex = self._get_bg_hex(settings)
 
-        if self._face_box is not None:
-            self._cropped = crop_passport(
-                self._enhanced, self._face_box, self._alpha_mask,
-                pw_mm, ph_mm, dpi, head_ratio, bg_hex,
-            )
-        else:
-            self._cropped = self._center_crop(self._enhanced, pw_mm, ph_mm, dpi)
+        self._cropped = self._execute_crop(pw_mm, ph_mm, dpi, head_ratio, bg_hex)
+        self._enhanced_cropped = self._apply_enhancements(self._cropped, settings)
 
-        if self._cropped.mode == "RGBA":
-            result.final_photo = apply_background(self._cropped, bg_hex)
+        if self._enhanced_cropped.mode == "RGBA":
+            result.final_photo = apply_background(self._enhanced_cropped, bg_hex)
         else:
-            result.final_photo = self._cropped
+            result.final_photo = self._enhanced_cropped
 
         pap_mm = paper_size_mm(settings.get("paper_size", "4x6"))
         result.sheets = build_sheets(
@@ -220,11 +251,49 @@ class PassportPipeline:
             copies=settings.get("copies", 8),
             gap_mm=settings.get("gap_mm", 2.0),
             margin_mm=settings.get("margin_mm", 5.0),
+            min_printer_margin_mm=settings.get("min_printer_margin_mm", 3.0),
             cut_lines=settings.get("cut_lines", True),
             orientation=settings.get("paper_orientation", "auto"),
         )
         result.num_sheets = len(result.sheets)
+        result.blocking_issues = list(self._blocking_issues)
+        result.warnings = list(self._face_warnings)
+        result.settings_snapshot = dict(settings)
         return result
+
+    def set_manual_crop(self, crop_box: Optional[Tuple[int, int, int, int]]) -> None:
+        """Set or clear manual crop box (x, y, w, h). If set, overrides automatic face crop."""
+        self._manual_crop_box = crop_box
+        if crop_box is not None:
+            # User explicitly framed the crop; clear face missing/small blocking issues
+            self._blocking_issues = [
+                issue for issue in self._blocking_issues
+                if "no human face" not in issue.lower() and "too small" not in issue.lower()
+            ]
+
+    def _execute_crop(
+        self, pw_mm: float, ph_mm: float, dpi: int, head_ratio: float, bg_hex: str
+    ) -> Image.Image:
+        """Execute face crop, manual crop, or center crop."""
+        from app.core.face_crop import crop_passport
+        out_w = round(pw_mm / 25.4 * dpi)
+        out_h = round(ph_mm / 25.4 * dpi)
+
+        if self._manual_crop_box is not None and self._rgba_cutout is not None:
+            # Manual crop box (x, y, w, h)
+            mx, my, mw, mh = self._manual_crop_box
+            cropped = self._rgba_cutout.crop((mx, my, mx + mw, my + mh))
+            return cropped.resize((out_w, out_h), Image.LANCZOS)
+
+        if self._face_box is not None and self._rgba_cutout is not None:
+            return crop_passport(
+                self._rgba_cutout, self._face_box, self._alpha_mask,
+                pw_mm, ph_mm, dpi, head_ratio, bg_hex,
+            )
+
+        # Fallback: center crop to target aspect ratio
+        source = self._rgba_cutout if self._rgba_cutout is not None else self._original
+        return self._center_crop(source, pw_mm, ph_mm, dpi)
 
     def has_cached_data(self) -> bool:
         """Check if there is cached data from a previous run."""
@@ -252,7 +321,7 @@ class PassportPipeline:
             contrast=settings.get("contrast", 0),
             warmth=settings.get("warmth", 0),
             shadow_lift=settings.get("shadow_lift", 0),
-            do_auto_enhance=settings.get("auto_enhance", True),
+            do_auto_enhance=settings.get("auto_enhance", False),
         )
 
     @staticmethod

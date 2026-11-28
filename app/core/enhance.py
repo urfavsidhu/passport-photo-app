@@ -106,8 +106,14 @@ def adjust_contrast(image: Image.Image, value: int) -> Image.Image:
     else:
         factor = 1.0 + value / 100.0  # 0.0 to 1.0
 
+    # Calculate mean of foreground pixels only (ignore transparent background)
+    if alpha is not None:
+        fg_mask = alpha > 0
+        mean = float(np.mean(rgb[fg_mask])) if np.any(fg_mask) else 128.0
+    else:
+        mean = float(np.mean(rgb))
+
     def adjust(arr):
-        mean = np.mean(arr)
         return np.clip((arr.astype(np.float32) - mean) * factor + mean, 0, 255)
 
     rgb = _apply_to_foreground(rgb, alpha, adjust)
@@ -183,13 +189,14 @@ def auto_enhance(image: Image.Image) -> Image.Image:
     """Apply gentle auto-enhancement to the foreground.
 
     Uses CLAHE (Contrast Limited Adaptive Histogram Equalization) on the
-    L channel in LAB color space, plus mild auto white balance.
+    L channel in LAB color space. Does not alter color balance to prevent
+    shifting natural skin tones.
 
     Args:
         image: Input image (RGB or RGBA).
 
     Returns:
-        Enhanced image.
+        Enhanced image with preserved skin tone and improved local contrast.
     """
     rgb, alpha, had_alpha = _split_foreground(image)
 
@@ -202,8 +209,8 @@ def auto_enhance(image: Image.Image) -> Image.Image:
     # Convert to LAB for CLAHE
     lab = cv2.cvtColor(rgb, cv2.COLOR_RGB2LAB)
 
-    # Apply CLAHE to L channel (gentle: clipLimit=1.5)
-    clahe = cv2.createCLAHE(clipLimit=1.5, tileGridSize=(8, 8))
+    # Apply CLAHE to L channel (gentle: clipLimit=1.2, tileGridSize=(8, 8))
+    clahe = cv2.createCLAHE(clipLimit=1.2, tileGridSize=(8, 8))
     l_original = lab[:, :, 0].copy()
     l_enhanced = clahe.apply(lab[:, :, 0])
 
@@ -213,9 +220,6 @@ def auto_enhance(image: Image.Image) -> Image.Image:
     # Convert back to RGB
     enhanced_rgb = cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
 
-    # Mild auto white balance (gray world assumption)
-    enhanced_rgb = _auto_white_balance(enhanced_rgb, fg_mask)
-
     # Merge back only foreground
     if alpha is not None:
         mask_3d = np.stack([fg_mask] * 3, axis=-1)
@@ -224,33 +228,6 @@ def auto_enhance(image: Image.Image) -> Image.Image:
         result = enhanced_rgb
 
     return _merge_foreground(result.astype(np.uint8), alpha, had_alpha)
-
-
-def _auto_white_balance(rgb: np.ndarray, mask: np.ndarray) -> np.ndarray:
-    """Apply mild gray-world white balance to foreground pixels."""
-    result = rgb.astype(np.float32)
-    fg_pixels = result[mask]
-
-    if len(fg_pixels) == 0:
-        return rgb
-
-    # Gray world: scale each channel so the mean is the overall mean
-    means = fg_pixels.mean(axis=0)
-    overall_mean = means.mean()
-
-    if overall_mean < 1:
-        return rgb
-
-    scales = overall_mean / (means + 1e-6)
-    # Limit the correction to avoid extreme shifts
-    scales = np.clip(scales, 0.85, 1.15)
-
-    for c in range(3):
-        channel = result[:, :, c]
-        channel[mask] = np.clip(channel[mask] * scales[c], 0, 255)
-        result[:, :, c] = channel
-
-    return result.astype(np.uint8)
 
 
 def apply_all_adjustments(

@@ -1,5 +1,5 @@
 """Tests for boundary cases and error handling:
-- No face in photo (NoFaceFoundError & fallback)
+- No face in photo (NoFaceFoundError & fallback flagged as blocking defect)
 - Multiple faces (picks largest & emits warning)
 - Extreme dark/bright exposure (auto-enhance safety)
 - Very large images (downscale & memory efficiency)
@@ -26,7 +26,7 @@ def test_no_face_detection():
 
 
 def test_pipeline_no_face_fallback():
-    """Verify pipeline does not crash when no face is found (uses fallback center crop)."""
+    """Verify pipeline does not crash when no face is found and flags blocking defect."""
     blank = Image.new("RGB", (800, 800), (100, 120, 140))
     pipeline = PassportPipeline()
     # Mock cached cutout to test crop/layout fallback directly
@@ -34,6 +34,7 @@ def test_pipeline_no_face_fallback():
     pipeline._alpha_mask = pipeline._rgba_cutout.split()[3]
     pipeline._enhanced = pipeline._rgba_cutout
     pipeline._face_box = None
+    pipeline._blocking_issues = ["No human face detected in photo. A generic center crop was applied."]
 
     settings = {
         "photo_size": "35x45",
@@ -48,6 +49,10 @@ def test_pipeline_no_face_fallback():
     # 35x45 mm at 300 DPI = 413x531 px
     assert result.final_photo.size == (413, 531)
     assert len(result.sheets) >= 1
+
+    # P0: Must be flagged with blocking issues to prevent silent wrong prints
+    assert result.has_blocking_issues is True
+    assert any("No human face detected" in issue for issue in result.blocking_issues)
 
 
 def test_auto_enhance_extreme_exposure():

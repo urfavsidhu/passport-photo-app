@@ -53,7 +53,8 @@ def test_build_sheets_single_sheet():
         dpi=300,
         copies=8,
         gap_mm=2.0,
-        margin_mm=4.0,
+        margin_mm=3.0,
+        min_printer_margin_mm=3.0,
         cut_lines=True,
         orientation="auto",
     )

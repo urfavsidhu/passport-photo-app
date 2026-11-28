@@ -1,13 +1,15 @@
 # -*- mode: python ; coding: utf-8 -*-
 """PyInstaller specification file for Passport Photo App.
 
-Packages the complete application into a standalone Windows executable
-including local models, configs, styles, and assets.
+Packages the complete application into a standalone Windows executable.
+- Disables UPX (upx=False) to prevent DLL corruption and false antivirus alerts.
+- Bundles isnet-general-use.onnx and blaze_face_short_range.tflite.
+- Uses collect_all for rembg, onnxruntime, mediapipe, pymatting.
 """
 
 import sys
 from pathlib import Path
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_submodules
 
 block_cipher = None
 
@@ -17,18 +19,31 @@ try:
 except NameError:
     project_dir = Path(".").resolve()
 
-# Collect required data files
+# Base data files
 datas = [
     (str(project_dir / "config"), "config"),
-    (str(project_dir / "models"), "models"),
     (str(project_dir / "assets"), "assets"),
     (str(project_dir / "app" / "ui" / "styles.qss"), "app/ui"),
 ]
 
-# Collect hidden imports for libraries that dynamically load components
+binaries = []
+
+# Bundle required models explicitly
+isnet_path = project_dir / "models" / "isnet-general-use.onnx"
+if isnet_path.exists():
+    datas.append((str(isnet_path), "models"))
+
+blaze_path = project_dir / "models" / "blaze_face_short_range.tflite"
+if blaze_path.exists():
+    datas.append((str(blaze_path), "models"))
+
+# Optional u2net fallback model if user has it
+u2net_path = project_dir / "models" / "u2net.onnx"
+if u2net_path.exists():
+    datas.append((str(u2net_path), "models"))
+
+# Base hidden imports
 hidden_imports = [
-    "rembg",
-    "onnxruntime",
     "cv2",
     "numpy",
     "PIL",
@@ -46,26 +61,22 @@ hidden_imports = [
     "PySide6.QtWidgets",
     "scipy",
     "scipy.ndimage",
-    "pymatting",
 ]
 
-# Collect mediapipe if present
-try:
-    hidden_imports.extend(collect_submodules("mediapipe"))
-    datas.extend(collect_data_files("mediapipe"))
-except Exception:
-    pass
-
-# Collect rembg data
-try:
-    datas.extend(collect_data_files("rembg"))
-except Exception:
-    pass
+# collect_all for packages with native binaries, ONNX runtimes, and models
+for pkg in ["rembg", "onnxruntime", "mediapipe", "pymatting"]:
+    try:
+        pkg_datas, pkg_binaries, pkg_hidden = collect_all(pkg)
+        datas.extend(pkg_datas)
+        binaries.extend(pkg_binaries)
+        hidden_imports.extend(pkg_hidden)
+    except Exception as exc:
+        print(f"Warning: collect_all({pkg}) failed: {exc}")
 
 a = Analysis(
     [str(project_dir / "main.py")],
     pathex=[str(project_dir)],
-    binaries=[],
+    binaries=binaries,
     datas=datas,
     hiddenimports=hidden_imports,
     hookspath=[],
@@ -89,7 +100,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,  # P2: Disable UPX compression to avoid AV false-positives and DLL breakage
     console=False,  # Windowed application (no CMD popup)
     disable_windowed_traceback=False,
     argv_emulation=False,
@@ -105,7 +116,7 @@ coll = COLLECT(
     a.zipfiles,
     a.datas,
     strip=False,
-    upx=True,
+    upx=False,  # P2: Disable UPX
     upx_exclude=[],
     name="PassportPhotoApp",
 )

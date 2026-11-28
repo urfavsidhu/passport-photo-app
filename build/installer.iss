@@ -2,7 +2,7 @@
 ; Produces PassportPhotoSetup.exe for offline installation on client Windows PCs
 
 #define MyAppName "Passport Photo App"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.1.0"
 #define MyAppPublisher "CSC Digital Seva"
 #define MyAppExeName "PassportPhotoApp.exe"
 

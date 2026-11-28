@@ -16,6 +16,7 @@ from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from app.settings_manager import SettingsManager, resource_path, user_data_dir
+from app.ui.theme import apply_theme, setup_theme_listener
 
 
 def setup_logging() -> None:
@@ -89,20 +90,14 @@ def main() -> int:
     app.setOrganizationName("PassportPhotoApp")
     app.setFont(QFont("Segoe UI", 10))
 
+    # Apply Brown Theme & Action Roles (Light/Dark dynamic support)
+    apply_theme(app)
+    setup_theme_listener(app)
+
     # Load App Icon
     icon_path = resource_path("assets/icon.ico")
     if icon_path.exists():
         app.setWindowIcon(QIcon(str(icon_path)))
-
-    # Load QSS stylesheet
-    qss_path = resource_path("app/ui/styles.qss")
-    if qss_path.exists():
-        try:
-            with open(qss_path, "r", encoding="utf-8") as f:
-                app.setStyleSheet(f.read())
-            logging.info("Loaded stylesheet from %s", qss_path)
-        except Exception as exc:
-            logging.warning("Could not load styles.qss: %s", exc)
 
     # Initialize Settings
     settings = SettingsManager()
@@ -113,7 +108,7 @@ def main() -> int:
         logging.info("First run detected. Launching setup wizard...")
         from app.ui.setup_wizard import SetupWizard
         wizard = SetupWizard(settings)
-        # If user cancels wizard on first run, we still proceed with defaults
+        # If user cancels wizard on first run, it still marks first_run_done=True
         wizard.exec()
 
     # Launch Main Window

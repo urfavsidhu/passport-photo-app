@@ -44,19 +44,24 @@ def _get_session():
         _session = new_session("isnet-general-use")
         logger.info("rembg session loaded (isnet-general-use) from %s", models_dir)
     except Exception as exc:
-        # Try u2net as fallback
-        try:
-            _session = new_session("u2net")
-            logger.info("rembg session loaded (u2net fallback) from %s", models_dir)
-        except Exception:
-            msg = (
-                f"Could not load AI model.\n"
-                f"Make sure model files exist in: {models_dir}\n"
-                f"Run 'python tools/download_models.py' to download them.\n"
-                f"Error: {exc}"
-            )
-            logger.error(msg)
-            raise RuntimeError(msg) from exc
+        # Check if u2net exists as optional fallback
+        u2net_path = models_dir / "u2net.onnx"
+        if u2net_path.exists():
+            try:
+                from rembg import new_session
+                _session = new_session("u2net")
+                logger.info("rembg session loaded (u2net fallback) from %s", models_dir)
+                return _session
+            except Exception:
+                pass
+        msg = (
+            f"Could not load AI model (isnet-general-use).\n"
+            f"Make sure model file exists in: {models_dir}\n"
+            f"Run 'python tools/download_models.py' to download it.\n"
+            f"Error: {exc}"
+        )
+        logger.error(msg)
+        raise RuntimeError(msg) from exc
     return _session
 
 
@@ -163,52 +168,38 @@ def _clean_alpha(rgba: Image.Image) -> Image.Image:
 
 
 def _decontaminate_edges(rgba: Image.Image) -> Image.Image:
-    """Remove color halos (white/green fringes) from semi-transparent edges.
+    """Remove color halos from semi-transparent edge pixels using nearest-opaque-color fill.
 
-    For edge pixels (alpha between 10 and 245), push the color toward
-    the nearest fully-opaque pixel color to remove background color bleeding.
+    For semi-transparent pixels (5 < alpha < 245), replaces the RGB values
+    with the color of the nearest fully-opaque foreground pixel (alpha >= 245)
+    via Euclidean distance transform. This avoids bright backgrounds bleeding
+    into dark hair edges.
     """
-    arr = np.array(rgba, dtype=np.float32)
+    arr = np.array(rgba)
     alpha = arr[:, :, 3]
 
-    # Find edge pixels (semi-transparent)
-    edge_mask = (alpha > 10) & (alpha < 245)
-    if not np.any(edge_mask):
-        return rgba
-
-    # Find fully opaque interior pixels
+    edge_mask = (alpha > 5) & (alpha < 245)
     opaque_mask = alpha >= 245
 
-    if not np.any(opaque_mask):
+    if not np.any(edge_mask) or not np.any(opaque_mask):
         return rgba
 
     try:
-        import cv2
-        # Dilate the opaque region to get "nearest interior color" for edges
-        kernel = np.ones((5, 5), np.uint8)
-        opaque_uint8 = opaque_mask.astype(np.uint8) * 255
+        from scipy.ndimage import distance_transform_edt
+        # Non-opaque pixels have 1, opaque pixels have 0
+        non_opaque = ~opaque_mask
+        _, indices = distance_transform_edt(non_opaque, return_indices=True)
 
-        # For each edge pixel, replace its color with the nearest opaque color
-        # We do this by inpainting: create an image with only opaque pixels,
-        # then dilate/blur to fill edge regions
+        nearest_rows = indices[0][edge_mask]
+        nearest_cols = indices[1][edge_mask]
+
         rgb = arr[:, :, :3].copy()
-        inpaint_mask = (~opaque_mask).astype(np.uint8) * 255
-
-        # Simple approach: repeatedly dilate opaque colors into transparent regions
-        for _ in range(3):
-            dilated = cv2.dilate(rgb * (opaque_mask | edge_mask)[:, :, np.newaxis],
-                                 kernel, iterations=1)
-            dilated_mask = cv2.dilate(opaque_uint8, kernel, iterations=1) > 0
-            
-            # Only replace edge pixels
-            replace = edge_mask & dilated_mask
-            rgb[replace] = dilated[replace]
+        rgb[edge_mask] = rgb[nearest_rows, nearest_cols]
 
         arr[:, :, :3] = rgb
-        return Image.fromarray(arr.astype(np.uint8), "RGBA")
-
+        return Image.fromarray(arr, "RGBA")
     except Exception as exc:
-        logger.debug("Edge decontamination skipped: %s", exc)
+        logger.debug("Distance transform decontamination skipped: %s", exc)
         return rgba
 
 

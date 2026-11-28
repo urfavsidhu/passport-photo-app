@@ -19,7 +19,10 @@ dist/
 models/*.onnx
 models/*.tmp
 
-# Local testing data outputs
+# Testing data inputs and outputs (Customer privacy & non-consensual images)
+data/input/*
+!data/input/.gitkeep
+data/input_local/
 data/output/*
 !data/output/.gitkeep
 data/output.png
@@ -32,6 +35,7 @@ logs/
 .pytest_cache/
 .coverage
 htmlcov/
+scratch/
 
 # OS / Editor files
 .DS_Store
