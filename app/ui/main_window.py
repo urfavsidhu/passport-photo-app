@@ -356,30 +356,41 @@ class MainWindow(QMainWindow):
 
         left_box.addWidget(self.warn_frame)
 
-        # Action Buttons Header
-        top_btn_layout = QHBoxLayout()
-        top_btn_layout.setSpacing(12)
+        # SaaS Header Bento Bar (Hero Navigation & Studio Identity)
+        header_frame = QFrame()
+        header_frame.setObjectName("headerBento")
+        header_layout = QHBoxLayout(header_frame)
+        header_layout.setContentsMargins(0, 0, 0, 2)
+        header_layout.setSpacing(10)
+
+        brand_pill = QLabel("⚡ PASSPORT STUDIO")
+        brand_pill.setObjectName("brandPill")
+        brand_pill.setStyleSheet(
+            "QLabel#brandPill { font-size: 13px; font-weight: 800; letter-spacing: 0.8px; padding: 4px 10px; }"
+        )
+        header_layout.addWidget(brand_pill)
+        header_layout.addStretch()
 
         self.upload_btn = QPushButton("📁 Upload Photo")
         self.upload_btn.setObjectName("uploadBtn")
         self.upload_btn.setToolTip("Select photo from computer (JPG, PNG, WEBP)")
         self.upload_btn.clicked.connect(self._on_upload_clicked)
-        top_btn_layout.addWidget(self.upload_btn)
+        header_layout.addWidget(self.upload_btn)
 
         self.camera_btn = QPushButton("📷 Live Camera")
         self.camera_btn.setObjectName("cameraBtn")
         self.camera_btn.setToolTip("Capture photo directly using webcam")
         self.camera_btn.clicked.connect(self._on_camera_clicked)
-        top_btn_layout.addWidget(self.camera_btn)
+        header_layout.addWidget(self.camera_btn)
 
         self.adjust_crop_btn = QPushButton("✂️ Adjust Crop...")
         self.adjust_crop_btn.setObjectName("adjustCropBtn")
         self.adjust_crop_btn.setToolTip("Fine-tune crop area and position manually")
         self.adjust_crop_btn.setEnabled(False)
         self.adjust_crop_btn.clicked.connect(self._on_adjust_crop_clicked)
-        top_btn_layout.addWidget(self.adjust_crop_btn)
+        header_layout.addWidget(self.adjust_crop_btn)
 
-        left_box.addLayout(top_btn_layout)
+        left_box.addWidget(header_frame)
 
         # Preview Widget
         self.preview_panel = PreviewPanel(self)
@@ -401,7 +412,7 @@ class MainWindow(QMainWindow):
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setMinimumWidth(390)
+        scroll.setMinimumWidth(420)
         scroll.setMaximumWidth(470)
 
         right_widget = QWidget()
@@ -544,17 +555,18 @@ class MainWindow(QMainWindow):
 
         right_box.addWidget(light_group)
 
-        # Primary Action Buttons
-        act_box = QVBoxLayout()
-        act_box.setContentsMargins(0, 6, 0, 6)
-        act_box.setSpacing(12)
+        # Bento Card: Action Launchpad (Primary SaaS Execution Hub)
+        act_group = QGroupBox("🚀 Action Launchpad")
+        act_layout = QVBoxLayout(act_group)
+        act_layout.setContentsMargins(14, 18, 14, 14)
+        act_layout.setSpacing(12)
 
         self.process_btn = QPushButton("⚡ Process Photo")
         self.process_btn.setObjectName("processBtn")
         self.process_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.process_btn.setProperty("role", "success")
         self.process_btn.clicked.connect(self._on_process_clicked)
-        act_box.addWidget(self.process_btn)
+        act_layout.addWidget(self.process_btn)
 
         self.print_btn = QPushButton("🖨️ Print Sheets")
         self.print_btn.setObjectName("printBtn")
@@ -562,7 +574,7 @@ class MainWindow(QMainWindow):
         self.print_btn.setProperty("role", "success")
         self.print_btn.clicked.connect(self._on_print_clicked)
         self.print_btn.setEnabled(False)
-        act_box.addWidget(self.print_btn)
+        act_layout.addWidget(self.print_btn)
 
         self.save_btn = QPushButton("💾 Save Sheet (PDF / PNG)")
         self.save_btn.setObjectName("saveBtn")
@@ -570,9 +582,9 @@ class MainWindow(QMainWindow):
         self.save_btn.setProperty("role", "success")
         self.save_btn.clicked.connect(self._on_save_sheet_clicked)
         self.save_btn.setEnabled(False)
-        act_box.addWidget(self.save_btn)
+        act_layout.addWidget(self.save_btn)
 
-        right_box.addLayout(act_box)
+        right_box.addWidget(act_group)
         right_box.addStretch()
 
         scroll.setWidget(right_widget)

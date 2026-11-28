@@ -1,9 +1,10 @@
 """Theme manager for Passport Photo App.
 
-Provides synchronized modern Dark Slate and Light Slate themes:
-- Dynamically adapts to Windows default color scheme (Light/Dark).
-- Identical card-based architecture with rounded corners (10px).
-- Clean alignments, vibrant sky-blue accented sliders, and high-contrast action buttons.
+Provides synchronized Minimalist Glassmorphism SaaS Dashboard themes:
+- Deep obsidian and pearlescent ambient gradients.
+- Translucent frosted glass Bento Grid cards with specular highlights.
+- Luminous cyan and emerald glow accents.
+- Dynamic adaptation to Windows default color scheme (Light/Dark).
 - Untinted photo previews and swatches.
 """
 
@@ -16,81 +17,95 @@ from PySide6.QtWidgets import QApplication
 
 logger = logging.getLogger(__name__)
 
-# Dark Slate Navy Palette (exact match to user reference screenshot)
+# Dark Glassmorphism SaaS Palette (Deep Obsidian + Frosted Slate + Luminous Cyan)
 DARK_THEME: Dict[str, str] = {
-    "window": "#161C26",
-    "panel": "#1E2634",
-    "panel_alt": "#243042",
-    "border": "#2D384A",
-    "border_light": "#3E4D64",
-    "button": "#2D3748",
-    "button_hover": "#374358",
-    "button_pressed": "#202937",
-    "text": "#F1F5F9",
+    "window": "#0B101B",
+    "window_gradient": "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #080C14, stop:0.4 #0E1524, stop:1 #0A111F)",
+    "panel": "rgba(20, 28, 44, 0.72)",
+    "panel_solid": "#131A29",
+    "panel_alt": "rgba(28, 38, 58, 0.60)",
+    "border": "rgba(255, 255, 255, 0.08)",
+    "border_highlight": "rgba(255, 255, 255, 0.16)",
+    "badge_bg": "rgba(56, 189, 248, 0.10)",
+    "badge_border": "rgba(56, 189, 248, 0.22)",
+    "badge_text": "#38BDF8",
+    "button": "rgba(255, 255, 255, 0.06)",
+    "button_hover": "rgba(255, 255, 255, 0.11)",
+    "button_pressed": "rgba(255, 255, 255, 0.03)",
+    "text": "#F8FAFC",
     "text_muted": "#94A3B8",
     "text_dark": "#0F172A",
     "accent": "#38BDF8",
     "accent_hover": "#0EA5E9",
-    "success": "#16A34A",
-    "success_hover": "#15803D",
-    "success_pressed": "#166534",
+    "success": "#10B981",
+    "success_hover": "#059669",
+    "cta_gradient_process": "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #10B981, stop:1 #059669)",
+    "cta_gradient_process_hover": "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #34D399, stop:1 #10B981)",
     "primary": "#2563EB",
     "primary_hover": "#1D4ED8",
+    "cta_gradient_save": "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #2563EB, stop:1 #3B82F6)",
     "danger": "#EF4444",
     "danger_hover": "#DC2626",
-    "banner_bg": "#351518",
-    "banner_border": "#EF4444",
+    "banner_bg": "rgba(239, 68, 68, 0.14)",
+    "banner_border": "rgba(239, 68, 68, 0.45)",
     "banner_text": "#FCA5A5",
-    "warn_bg": "#332610",
-    "warn_border": "#F59E0B",
+    "warn_bg": "rgba(245, 158, 11, 0.14)",
+    "warn_border": "rgba(245, 158, 11, 0.45)",
     "warn_text": "#FCD34D",
-    "slider_groove": "#283344",
-    "slider_active": "#38BDF8",
-    "slider_handle": "#94A3B8",
-    "slider_handle_border": "#CBD5E1",
-    "input_bg": "#141A23",
-    "input_border": "#2D384A",
+    "slider_groove": "rgba(255, 255, 255, 0.10)",
+    "slider_active": "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0284C7, stop:1 #38BDF8)",
+    "slider_handle": "#FFFFFF",
+    "slider_handle_border": "#0284C7",
+    "input_bg": "rgba(13, 19, 31, 0.72)",
+    "input_border": "rgba(255, 255, 255, 0.09)",
     "input_focus_border": "#38BDF8",
-    "scrollbar_bg": "#161C26",
-    "scrollbar_handle": "#2E3A4D",
+    "scrollbar_bg": "transparent",
+    "scrollbar_handle": "rgba(255, 255, 255, 0.16)",
 }
 
-# Light Slate Card Palette (clean, modern light equivalent)
+# Light Glassmorphism SaaS Palette (Frosted Pearl + Pure White Glass + Electric Blue)
 LIGHT_THEME: Dict[str, str] = {
-    "window": "#F1F5F9",
-    "panel": "#FFFFFF",
-    "panel_alt": "#F8FAFC",
-    "border": "#E2E8F0",
-    "border_light": "#CBD5E1",
-    "button": "#F8FAFC",
-    "button_hover": "#F1F5F9",
+    "window": "#F0F4F9",
+    "window_gradient": "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #F8FAFC, stop:0.4 #F1F5F9, stop:1 #E2E8F0)",
+    "panel": "rgba(255, 255, 255, 0.82)",
+    "panel_solid": "#FFFFFF",
+    "panel_alt": "rgba(241, 245, 249, 0.80)",
+    "border": "rgba(203, 213, 225, 0.85)",
+    "border_highlight": "rgba(255, 255, 255, 0.98)",
+    "badge_bg": "rgba(2, 132, 199, 0.08)",
+    "badge_border": "rgba(2, 132, 199, 0.20)",
+    "badge_text": "#0284C7",
+    "button": "rgba(255, 255, 255, 0.88)",
+    "button_hover": "#FFFFFF",
     "button_pressed": "#E2E8F0",
     "text": "#0F172A",
     "text_muted": "#64748B",
     "text_dark": "#FFFFFF",
     "accent": "#0284C7",
     "accent_hover": "#0369A1",
-    "success": "#16A34A",
-    "success_hover": "#15803D",
-    "success_pressed": "#166534",
+    "success": "#059669",
+    "success_hover": "#047857",
+    "cta_gradient_process": "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #059669, stop:1 #10B981)",
+    "cta_gradient_process_hover": "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #047857, stop:1 #059669)",
     "primary": "#2563EB",
     "primary_hover": "#1D4ED8",
+    "cta_gradient_save": "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1D4ED8, stop:1 #2563EB)",
     "danger": "#DC2626",
     "danger_hover": "#B91C1C",
-    "banner_bg": "#FEF2F2",
-    "banner_border": "#EF4444",
+    "banner_bg": "rgba(254, 242, 242, 0.92)",
+    "banner_border": "rgba(239, 68, 68, 0.40)",
     "banner_text": "#991B1B",
-    "warn_bg": "#FFFBEB",
-    "warn_border": "#F59E0B",
+    "warn_bg": "rgba(255, 251, 235, 0.92)",
+    "warn_border": "rgba(245, 158, 11, 0.40)",
     "warn_text": "#92400E",
     "slider_groove": "#E2E8F0",
-    "slider_active": "#0284C7",
+    "slider_active": "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0284C7, stop:1 #38BDF8)",
     "slider_handle": "#FFFFFF",
     "slider_handle_border": "#0284C7",
-    "input_bg": "#FFFFFF",
+    "input_bg": "rgba(255, 255, 255, 0.92)",
     "input_border": "#CBD5E1",
     "input_focus_border": "#0284C7",
-    "scrollbar_bg": "#F1F5F9",
+    "scrollbar_bg": "transparent",
     "scrollbar_handle": "#CBD5E1",
 }
 
@@ -121,14 +136,14 @@ def build_palette(is_dark: bool) -> QPalette:
     t = DARK_THEME if is_dark else LIGHT_THEME
     palette = QPalette()
 
-    palette.setColor(QPalette.ColorRole.Window, QColor(t["window"]))
+    palette.setColor(QPalette.ColorRole.Window, QColor(t["panel_solid"]))
     palette.setColor(QPalette.ColorRole.WindowText, QColor(t["text"]))
-    palette.setColor(QPalette.ColorRole.Base, QColor(t["input_bg"]))
-    palette.setColor(QPalette.ColorRole.AlternateBase, QColor(t["panel_alt"]))
-    palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(t["panel"]))
+    palette.setColor(QPalette.ColorRole.Base, QColor(t["panel_solid"]))
+    palette.setColor(QPalette.ColorRole.AlternateBase, QColor(t["panel_solid"]))
+    palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(t["panel_solid"]))
     palette.setColor(QPalette.ColorRole.ToolTipText, QColor(t["text"]))
     palette.setColor(QPalette.ColorRole.Text, QColor(t["text"]))
-    palette.setColor(QPalette.ColorRole.Button, QColor(t["button"]))
+    palette.setColor(QPalette.ColorRole.Button, QColor(t["panel_solid"]))
     palette.setColor(QPalette.ColorRole.ButtonText, QColor(t["text"]))
     palette.setColor(QPalette.ColorRole.Highlight, QColor(t["accent"]))
     palette.setColor(QPalette.ColorRole.HighlightedText, QColor(t["text_dark"]))
@@ -145,42 +160,44 @@ def get_stylesheet(is_dark: bool) -> str:
     """Render the master QSS template for the active theme mode."""
     t = DARK_THEME if is_dark else LIGHT_THEME
 
-    disabled_btn_bg = "#1A222D" if is_dark else "#F1F5F9"
-    disabled_btn_border = "#252F3F" if is_dark else "#E2E8F0"
+    disabled_btn_bg = "rgba(255, 255, 255, 0.04)" if is_dark else "#F1F5F9"
+    disabled_btn_border = "rgba(255, 255, 255, 0.06)" if is_dark else "#E2E8F0"
     disabled_btn_text = "#475569" if is_dark else "#94A3B8"
 
     return f"""
 QWidget {{
     font-family: "Segoe UI", "Arial", sans-serif;
-    font-size: 14px;
+    font-size: 13px;
     color: {t["text"]};
     background-color: transparent;
 }}
 
 QMainWindow, QDialog, QWizard {{
-    background-color: {t["window"]};
+    background: {t["window_gradient"]};
 }}
 
+/* Top Action Buttons & General SaaS Buttons */
 QPushButton {{
     background-color: {t["button"]};
     color: {t["text"]};
-    border: 1px solid {t["border_light"]};
-    border-radius: 8px;
+    border: 1px solid {t["border"]};
+    border-top: 1px solid {t["border_highlight"]};
+    border-radius: 9px;
     padding: 8px 16px;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
     min-height: 38px;
 }}
 QPushButton:hover {{
     background-color: {t["button_hover"]};
-    border-color: {t["border_light"]};
+    border-color: {t["accent"]};
 }}
 QPushButton:pressed {{
     background-color: {t["button_pressed"]};
 }}
 QPushButton:checked {{
     background-color: {t["accent"]};
-    color: {t["text_dark"]};
+    color: #FFFFFF;
     border-color: {t["accent"]};
     font-weight: bold;
 }}
@@ -190,34 +207,54 @@ QPushButton:disabled {{
     color: {disabled_btn_text};
 }}
 
-QPushButton#processBtn, QPushButton#printBtn {{
-    background-color: {t["success"]};
+/* Primary Big Actions (Luminous SaaS CTAs) */
+QPushButton#processBtn {{
+    background: {t["cta_gradient_process"]};
     color: #FFFFFF;
-    font-size: 16px;
-    font-weight: bold;
+    font-size: 15px;
+    font-weight: 700;
     min-height: 48px;
     padding: 10px 24px;
     border: none;
-    border-radius: 8px;
+    border-radius: 10px;
 }}
-QPushButton#processBtn:hover, QPushButton#printBtn:hover {{
-    background-color: {t["success_hover"]};
+QPushButton#processBtn:hover {{
+    background: {t["cta_gradient_process_hover"]};
 }}
-QPushButton#processBtn:disabled, QPushButton#printBtn:disabled {{
+QPushButton#processBtn:disabled {{
+    background-color: {disabled_btn_bg};
+    color: {disabled_btn_text};
+    border: 1px solid {disabled_btn_border};
+}}
+
+QPushButton#printBtn {{
+    background: {t["cta_gradient_process"]};
+    color: #FFFFFF;
+    font-size: 15px;
+    font-weight: 700;
+    min-height: 48px;
+    padding: 10px 24px;
+    border: none;
+    border-radius: 10px;
+}}
+QPushButton#printBtn:hover {{
+    background: {t["cta_gradient_process_hover"]};
+}}
+QPushButton#printBtn:disabled {{
     background-color: {disabled_btn_bg};
     color: {disabled_btn_text};
     border: 1px solid {disabled_btn_border};
 }}
 
 QPushButton#saveBtn {{
-    background-color: {t["primary"]};
+    background: {t["cta_gradient_save"]};
     color: #FFFFFF;
-    font-size: 15px;
-    font-weight: bold;
+    font-size: 14px;
+    font-weight: 700;
     min-height: 44px;
-    padding: 10px 24px;
+    padding: 10px 22px;
     border: none;
-    border-radius: 8px;
+    border-radius: 10px;
 }}
 QPushButton#saveBtn:hover {{
     background-color: {t["primary_hover"]};
@@ -231,160 +268,167 @@ QPushButton#saveBtn:disabled {{
 QPushButton[role="danger"] {{
     background-color: {t["button"]};
     color: {t["danger"]};
-    border: 1px solid {t["border_light"]};
+    border: 1px solid {t["border"]};
     border-radius: 8px;
     padding: 6px 14px;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
     min-height: 34px;
 }}
 QPushButton[role="danger"]:hover {{
     background-color: {t["danger"]};
     color: #FFFFFF;
+    border-color: {t["danger"]};
 }}
 
+/* Floating Alert Banners (SaaS Pill Notice) */
 QFrame#bannerFrame {{
     background-color: {t["banner_bg"]};
     border: 1.5px solid {t["banner_border"]};
-    border-radius: 8px;
+    border-radius: 10px;
 }}
 QLabel#bannerLabel {{
     color: {t["banner_text"]};
     font-weight: bold;
-    font-size: 14px;
+    font-size: 13px;
 }}
 
 QFrame#warnFrame {{
     background-color: {t["warn_bg"]};
     border: 1.5px solid {t["warn_border"]};
-    border-radius: 8px;
+    border-radius: 10px;
 }}
 QLabel#warnLabel {{
     color: {t["warn_text"]};
     font-weight: bold;
-    font-size: 14px;
+    font-size: 13px;
 }}
 
 QLabel {{
     color: {t["text"]};
-    font-size: 14px;
+    font-size: 13px;
     padding: 2px;
 }}
-QLabel#titleLabel {{
-    font-size: 22px;
-    font-weight: bold;
-    color: {t["text"]};
-    padding: 8px 0px;
-}}
 QLabel#statusLabel {{
-    font-size: 13px;
+    font-size: 12px;
     color: {t["text_muted"]};
     padding: 4px 6px;
     background-color: transparent;
 }}
 QLabel#previewPlaceholder {{
     color: {t["text_muted"]};
-    font-size: 15px;
+    font-size: 14px;
     background-color: {t["panel"]};
-    border: 1.5px dashed {t["border_light"]};
-    border-radius: 10px;
+    border: 1.5px dashed {t["border_highlight"]};
+    border-radius: 14px;
 }}
 
+/* Bento Grid Cards (Frosted Glass with Specular Edge) */
 QGroupBox {{
-    font-size: 14px;
-    font-weight: bold;
-    color: {t["text"]};
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    color: {t["badge_text"]};
+    background-color: {t["panel"]};
     border: 1px solid {t["border"]};
-    border-radius: 10px;
+    border-top: 1px solid {t["border_highlight"]};
+    border-radius: 14px;
     margin-top: 14px;
     padding: 16px 14px 14px 14px;
-    background-color: {t["panel"]};
 }}
 QGroupBox::title {{
     subcontrol-origin: margin;
     subcontrol-position: top left;
-    padding: 1px 8px;
-    background-color: {t["window"]};
-    border: 1px solid {t["border"]};
-    border-radius: 4px;
-    color: {t["text"]};
+    margin-left: 10px;
+    padding: 2px 10px;
+    background-color: {t["badge_bg"]};
+    border: 1px solid {t["badge_border"]};
+    border-radius: 6px;
+    color: {t["badge_text"]};
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
 }}
 
+/* Glass Inputs & Dropdowns */
 QComboBox, QSpinBox, QDoubleSpinBox, QLineEdit {{
     background-color: {t["input_bg"]};
     border: 1px solid {t["input_border"]};
-    border-radius: 6px;
-    padding: 6px 10px;
-    font-size: 14px;
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
     min-height: 36px;
     color: {t["text"]};
 }}
 QComboBox:hover, QSpinBox:hover, QDoubleSpinBox:hover, QLineEdit:hover {{
-    border-color: {t["border_light"]};
+    border-color: {t["accent"]};
 }}
 QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus, QLineEdit:focus {{
-    border-color: {t["input_focus_border"]};
+    border: 1.5px solid {t["input_focus_border"]};
 }}
 QComboBox::drop-down {{
     border: none;
-    width: 26px;
+    width: 24px;
 }}
 QComboBox QAbstractItemView {{
-    background-color: {t["panel"]};
+    background-color: {t["panel_solid"]};
     border: 1px solid {t["border"]};
-    border-radius: 6px;
+    border-radius: 8px;
     padding: 4px;
-    selection-background-color: {t["panel_alt"]};
+    selection-background-color: {t["badge_bg"]};
     selection-color: {t["accent"]};
     color: {t["text"]};
 }}
 
+/* Minimalist SaaS Sliders */
 QSlider::groove:horizontal {{
-    height: 6px;
+    height: 5px;
     background: {t["slider_groove"]};
-    border-radius: 3px;
+    border-radius: 2.5px;
 }}
 QSlider::sub-page:horizontal {{
     background: {t["slider_active"]};
-    border-radius: 3px;
+    border-radius: 2.5px;
 }}
 QSlider::handle:horizontal {{
     background: {t["slider_handle"]};
     border: 2px solid {t["slider_handle_border"]};
-    width: 18px;
-    height: 18px;
-    margin: -6px 0;
-    border-radius: 9px;
+    width: 16px;
+    height: 16px;
+    margin: -5.5px 0;
+    border-radius: 8px;
 }}
 QSlider::handle:horizontal:hover {{
-    background: {t["panel"]};
-    border-color: {t["accent"]};
+    background: {t["accent"]};
+    border-color: #FFFFFF;
 }}
 
+/* Progress Bar */
 QProgressBar {{
     background-color: {t["panel"]};
     border: 1px solid {t["border"]};
     border-radius: 8px;
-    height: 20px;
+    height: 18px;
     text-align: center;
-    font-size: 12px;
+    font-size: 11px;
     color: {t["text"]};
 }}
 QProgressBar::chunk {{
-    background-color: {t["accent"]};
+    background: {t["slider_active"]};
     border-radius: 7px;
 }}
 
+/* Top Menu Bar */
 QMenuBar {{
-    background-color: {t["window"]};
+    background-color: transparent;
     border: none;
     padding: 4px;
-    font-size: 14px;
+    font-size: 13px;
     color: {t["text_muted"]};
 }}
 QMenuBar::item {{
     padding: 6px 12px;
-    border-radius: 4px;
+    border-radius: 6px;
     background-color: transparent;
     color: {t["text"]};
 }}
@@ -393,14 +437,14 @@ QMenuBar::item:selected {{
     color: {t["accent"]};
 }}
 QMenu {{
-    background-color: {t["panel"]};
+    background-color: {t["panel_solid"]};
     border: 1px solid {t["border"]};
-    border-radius: 8px;
-    padding: 4px;
+    border-radius: 10px;
+    padding: 6px;
 }}
 QMenu::item {{
     padding: 8px 24px;
-    border-radius: 4px;
+    border-radius: 6px;
     color: {t["text"]};
 }}
 QMenu::item:selected {{
@@ -408,46 +452,51 @@ QMenu::item:selected {{
     color: {t["accent"]};
 }}
 
+/* Tooltips */
 QToolTip {{
-    background-color: {t["panel"]};
+    background-color: {t["panel_solid"]};
     color: {t["text"]};
     border: 1px solid {t["border"]};
-    border-radius: 4px;
+    border-radius: 6px;
     padding: 6px 10px;
-    font-size: 13px;
+    font-size: 12px;
 }}
 
+/* Scroll Area */
 QScrollArea {{
     border: none;
     background-color: transparent;
 }}
 QScrollBar:vertical {{
-    background: {t["scrollbar_bg"]};
-    width: 10px;
-    border-radius: 5px;
+    background: transparent;
+    width: 8px;
+    border-radius: 4px;
+    margin: 0;
 }}
 QScrollBar::handle:vertical {{
     background: {t["scrollbar_handle"]};
-    border-radius: 5px;
+    border-radius: 4px;
     min-height: 30px;
 }}
 QScrollBar::handle:vertical:hover {{
-    background: {t["border_light"]};
+    background: {t["accent"]};
 }}
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
     height: 0px;
 }}
 
+/* Status Bar */
 QStatusBar {{
     background-color: {t["panel"]};
     border-top: 1px solid {t["border"]};
-    font-size: 13px;
+    font-size: 12px;
     color: {t["text_muted"]};
-    padding: 4px;
+    padding: 4px 12px;
 }}
 
+/* Checkbox */
 QCheckBox {{
-    font-size: 14px;
+    font-size: 13px;
     spacing: 8px;
     padding: 4px;
     color: {t["text"]};
@@ -456,7 +505,7 @@ QCheckBox::indicator {{
     width: 18px;
     height: 18px;
     border: 1px solid {t["input_border"]};
-    border-radius: 4px;
+    border-radius: 5px;
     background-color: {t["input_bg"]};
 }}
 QCheckBox::indicator:checked {{
@@ -468,8 +517,8 @@ QCheckBox::indicator:hover {{
 }}
 
 QFrame#colorPreview {{
-    border: 1px solid {t["border_light"]};
-    border-radius: 6px;
+    border: 1.5px solid {t["border_highlight"]};
+    border-radius: 8px;
     min-width: 50px;
     min-height: 36px;
 }}
@@ -489,8 +538,8 @@ def apply_theme(app: QApplication, is_dark: Optional[bool] = None) -> None:
 
     qss = get_stylesheet(is_dark)
     app.setStyleSheet(qss)
-    mode_str = "Dark Slate" if is_dark else "Light Slate"
-    logger.info("Applied %s theme (system matching)", mode_str)
+    mode_str = "Dark Obsidian Glass" if is_dark else "Light Pearl Glass"
+    logger.info("Applied %s theme (Minimalist Glassmorphism SaaS)", mode_str)
 
 
 def setup_theme_listener(app: QApplication) -> None:

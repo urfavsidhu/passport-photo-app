@@ -81,14 +81,14 @@ class PreviewPanel(QWidget):
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(8)
 
-        self._before_after_btn = QPushButton("Before / After")
+        self._before_after_btn = QPushButton("👁️ Before / After")
         self._before_after_btn.setFixedHeight(36)
         self._before_after_btn.setCheckable(True)
         self._before_after_btn.clicked.connect(self._toggle_before_after)
         self._before_after_btn.setEnabled(False)
         btn_layout.addWidget(self._before_after_btn)
 
-        self._sheet_btn = QPushButton("Sheet Preview")
+        self._sheet_btn = QPushButton("📄 Sheet Preview")
         self._sheet_btn.setFixedHeight(36)
         self._sheet_btn.setCheckable(True)
         self._sheet_btn.clicked.connect(self._toggle_sheet)
